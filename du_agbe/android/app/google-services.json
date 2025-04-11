@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "210930223753",
+    "project_id": "bossfinal-581aa",
+    "storage_bucket": "bossfinal-581aa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:210930223753:android:0b6281e69bd954cd5d1458",
+        "android_client_info": {
+          "package_name": "com.example.du_agbe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvmizpBNOsOUi3PvsSycawRRl8hE076vw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
