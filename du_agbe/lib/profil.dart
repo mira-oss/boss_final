@@ -1,9 +1,9 @@
 import 'dart:io';
-
-import 'package:du_agbe/main.dart';
+import 'package:du_agbe/themeNotifier.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+//import 'package:du_agbe/theme_notifier.dart';
 
 class Profil extends StatefulWidget {
   const Profil({super.key});
@@ -92,7 +92,7 @@ class _ProfilState extends State<Profil> {
             icon: Icon(themeNotifier.themeMode == ThemeMode.dark 
                 ? Icons.light_mode 
                 : Icons.dark_mode),
-            onPressed: () => themeNotifier.toggleTheme(),
+            onPressed: themeNotifier.toggleTheme,
           ),
         ],
       ),

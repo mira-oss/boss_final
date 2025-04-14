@@ -1,9 +1,8 @@
+import 'package:du_agbe/Services/Firebase/auth.dart';
 import 'package:du_agbe/connexion.dart';
-import 'package:du_agbe/services/firebase/auth.dart';
+import 'package:du_agbe/main.dart'; // Importez votre MyHomePage
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
-
 
 class InscriptionPage extends StatefulWidget {
   const InscriptionPage({super.key});
@@ -13,8 +12,7 @@ class InscriptionPage extends StatefulWidget {
 }
 
 class _InscriptionPageState extends State<InscriptionPage> {
-final formKey = GlobalKey<FormState>();
-  //controller de texte
+  final formKey = GlobalKey<FormState>();
   final nom = TextEditingController();
   final prenom = TextEditingController();
   final email = TextEditingController();
@@ -23,7 +21,7 @@ final formKey = GlobalKey<FormState>();
   bool showPassword = false;
   bool showConfirmPassword = false;
   bool isLoading = false;
-  // verification email
+
   String? validateEmail(String? value) {
     const pattern = r"(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'"
         r'+/=?^_`{|}~-]+)|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-'
@@ -35,100 +33,96 @@ final formKey = GlobalKey<FormState>();
     final regex = RegExp(pattern);
     if (value!.isNotEmpty && !regex.hasMatch(value)) {
       return "Entrez un email valide";
-    } else {
-      return null;
     }
+    return null;
   }
-
-
 
   @override
   Widget build(BuildContext context) {
     final largeurEcran = MediaQuery.of(context).size.width;
-
     final hauteurEcran = MediaQuery.of(context).size.height;
+    
     return Scaffold(
-      
       body: SingleChildScrollView(
         scrollDirection: Axis.vertical,
         padding: EdgeInsets.all(20),
         child: Column(
-          spacing: 10,
           children: [
-            SizedBox(height: hauteurEcran*0.02,),
+            SizedBox(height: hauteurEcran*0.02),
             Container(
               width: largeurEcran * 0.9,
               height: hauteurEcran * 0.4,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage(
-                      'assets/images/joie.png'),
+                  image: AssetImage('assets/images/joie.png'),
                   fit: BoxFit.cover,
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            SizedBox(height: hauteurEcran * 0.005,),
-             Text(
+            SizedBox(height: hauteurEcran * 0.005),
+            Text(
               'Bienvenue sur Du Agbé',
-              style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic,),
+              style: TextStyle(
+                fontSize: 23, 
+                fontWeight: FontWeight.bold, 
+                fontStyle: FontStyle.italic,
+              ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: hauteurEcran * 0.005,),
+            SizedBox(height: hauteurEcran * 0.005),
             Form(
               key: formKey,
               child: Column(
-                spacing: 10,
-              children: [
-        
-            TextFormField(
-              controller: nom,
-               validator: (value) {
+                children: [
+                  TextFormField(
+                    controller: nom,
+                    validator: (value) {
                       if (value!.isEmpty) {
                         return "Votre nom est obligatoire";
                       }
                       return null;
                     },
-
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                      
-                      borderRadius: BorderRadius.circular(12)),
-                  labelText: 'Nom',
-                   prefixIcon: const Icon(Icons.person_3_outlined),
-                  hintText: 'Ex : ELISHA'),
-            ),
-            TextFormField(
-              controller: prenom,
-               validator: (value) {
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                      labelText: 'Nom',
+                      prefixIcon: const Icon(Icons.person_3_outlined),
+                      hintText: 'Ex : ELISHA',
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: prenom,
+                    validator: (value) {
                       if (value!.isEmpty) {
                         return "Votre prénom est obligatoire";
                       }
                       return null;
                     },
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                     
-                      borderRadius: BorderRadius.circular(12)),
-                       prefixIcon: const Icon(Icons.person_3_outlined),
-                  labelText: 'Prénom',
-                  hintText: 'Ex : Richard Donatien'),
-            ),
-            TextFormField(
-              controller: email,
-               //validator: validateEmail,
-              decoration: InputDecoration(
-                 border: OutlineInputBorder(
-                      
-                      borderRadius: BorderRadius.circular(12)),
-                       prefixIcon: const Icon(Icons.email_outlined),
-                  labelText: 'Email',
-                  hintText: 'ex : elisha@gmail.com'),
-                
-            ),
-             TextFormField(
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.person_3_outlined),
+                      labelText: 'Prénom',
+                      hintText: 'Ex : Richard Donatien',
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
+                    controller: email,
+                    validator: validateEmail,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      labelText: 'Email',
+                      hintText: 'ex : elisha@gmail.com',
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextFormField(
                     controller: passWord,
-                    // pour verifier si le champ est bien rempli
                     validator: (value) {
                       if (value!.isEmpty) {
                         return "Mot de passe obligatoire";
@@ -145,26 +139,23 @@ final formKey = GlobalKey<FormState>();
                     },
                     obscureText: !showPassword,
                     decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      
-                      borderRadius: BorderRadius.circular(12)),
-                       
-                        
-                        hintText: "Mot de passe",
-                         prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(() {
-                            showPassword = !showPassword;
-                          }),
-                          icon: Icon(showPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                        )),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                      hintText: "Mot de passe",
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() {
+                          showPassword = !showPassword;
+                        }),
+                        icon: Icon(showPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                      ),
+                    ),
                   ),
-
+                  SizedBox(height: 10),
                   TextFormField(
                     controller: confirmPassword,
-                    // pour verifier si le champ est bien rempli
                     validator: (value) {
                       if (value!.isEmpty) {
                         return "Confirmer votre mot de passe";
@@ -175,112 +166,101 @@ final formKey = GlobalKey<FormState>();
                     },
                     obscureText: !showConfirmPassword,
                     decoration: InputDecoration(
-                     border: OutlineInputBorder(
-                     
-                      borderRadius: BorderRadius.circular(12)),
-                    
-                        
-                        hintText: "Confirmez le mot de passe",
-                         prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          onPressed: () => setState(() {
-                            showConfirmPassword = !showConfirmPassword;
-                          }),
-                          icon: Icon(showConfirmPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                        )),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                      hintText: "Confirmez le mot de passe",
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() {
+                          showConfirmPassword = !showConfirmPassword;
+                        }),
+                        icon: Icon(showConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                      ),
+                    ),
                   ),
-
- GestureDetector(
-  onTap: () => setState(() {
-     Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => const ConnexionPage()));
-  }),
-   child: Container(
+                  SizedBox(height: 20),
+                  Container(
                     width: largeurEcran * 0.88,
                     height: 50,
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: Colors.blue),
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.blue,
+                    ),
                     child: TextButton(
                       onPressed: isLoading
                           ? null
                           : () async {
-                              setState(() {
-                                isLoading = true;
-                              });
                               if (formKey.currentState!.validate()) {
-                                // Logique de connexion
+                                setState(() {
+                                  isLoading = true;
+                                });
                                 try {
-                                  Auth().createUserWithEmailAndPassword(
+                                  await Auth().createUserWithEmailAndPassword(
                                     nom.text,
                                     prenom.text,
                                     email.text,
                                     passWord.text,
                                   );
-                                  setState(() {
-                                    isLoading = false;
-                                  });
+                                  
+                                  // Redirection vers MyHomePage après inscription réussie
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const MyHomePage(),
+                                    ),
+                                  );
                                 } on FirebaseAuthException catch (e) {
                                   setState(() {
                                     isLoading = false;
                                   });
-                                  // message d'erreur
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar( content: Text("${e.message}"),
+                                    SnackBar(
+                                      content: Text("${e.message}"),
                                       behavior: SnackBarBehavior.floating,
                                       backgroundColor: Color(0xffE9494F),
                                       showCloseIcon: true,
                                     ),
                                   );
                                 }
-                                // naviguer vers la page home
-                                
                               }
                             },
-                      child: 
-                           Text(
+                      child: isLoading
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text(
                               "S'inscrire",
                               style: TextStyle(
-                                  fontSize: largeurEcran * 0.04,
-                                  color: Colors.white),
+                                fontSize: largeurEcran * 0.04,
+                                color: Colors.white,
+                              ),
                             ),
                     ),
                   ),
- ),
-
-                //bouton de connexion
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text("Vous êtes utilisateur?"),
-                    TextButton(
-                      child: Text("Se connecter"),
-                      onPressed: () => setState(() {
-                        // naviguer vers la page de connexion
- Navigator.push(
+                  SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("Vous êtes utilisateur?"),
+                      TextButton(
+                        child: Text("Se connecter"),
+                        onPressed: () {
+                          Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                                builder: (context) => const ConnexionPage()));
-                      }),
-                    ) ] )
-                    
-                    
-                    ]
-                    )) ] )) );
-                  
-              
-              
-            
-
-            
-        
-        
-      
-    
+                              builder: (context) => const ConnexionPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
