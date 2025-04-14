@@ -2,6 +2,7 @@ import 'package:du_agbe/addcat.dart';
 import 'package:du_agbe/firebase_options.dart';
 import 'package:du_agbe/homePage.dart';
 import 'package:du_agbe/profil.dart';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -57,7 +58,8 @@ class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
   final pages = [
     Homepage(),
-    Profil()
+   // AdminEventPage()
+   Profil()
     ];
   bool _colorful = false;
   @override
