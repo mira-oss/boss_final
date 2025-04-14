@@ -62,7 +62,7 @@ final formKey = GlobalKey<FormState>();
               decoration: BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage(
-                      'assets/images/avatar.jpeg'),
+                      'assets/images/joie.png'),
                   fit: BoxFit.cover,
                 ),
                 borderRadius: BorderRadius.circular(12),

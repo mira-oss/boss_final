@@ -1,5 +1,6 @@
 import 'package:du_agbe/Services/Firebase/auth.dart';
 import 'package:du_agbe/homePage.dart';
+import 'package:du_agbe/inscription.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -240,7 +241,9 @@ class _ConnexionpageState extends State<ConnexionPage> {
               Text('Pas de compte ?'),
               
               TextButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context)=>InscriptionPage()));
+              },
               child: Text(
                 'S\'incrire',
                 style: TextStyle(fontSize: 16),
