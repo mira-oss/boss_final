@@ -1,5 +1,7 @@
+import 'package:du_agbe/connexion.dart';
 import 'package:du_agbe/firebase_options.dart';
-import 'package:du_agbe/homePage.dart';
+
+import 'package:du_agbe/inscription.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -13,14 +15,14 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) { 
     return MaterialApp(
         title: 'Flutter Demo',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: Homepage());
+        home: ConnexionPage());
   }
 }
 
