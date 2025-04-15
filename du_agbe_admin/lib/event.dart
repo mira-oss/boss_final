@@ -1,4 +1,3 @@
-
 import 'package:du_agbe_admin/ticketType.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,7 +9,7 @@ class Event {
   String description;
   int maxCapacity;
   String status; // 'draft', 'published', 'completed', 'cancelled'
-  String imageUrl;
+  List<String> imageUrls; // Changé de String imageUrl à List<String> imageUrls
   String organizerId;
   List<TicketType> ticketTypes;
 
@@ -22,7 +21,7 @@ class Event {
     required this.description,
     required this.maxCapacity,
     required this.status,
-    this.imageUrl = '',
+    this.imageUrls = const [], // Initialisé comme liste vide par défaut
     required this.organizerId,
     List<TicketType>? ticketTypes,
   }) : 
@@ -38,7 +37,7 @@ class Event {
       'description': description,
       'maxCapacity': maxCapacity,
       'status': status,
-      'imageUrl': imageUrl,
+      'imageUrls': imageUrls, // Changé de imageUrl à imageUrls
       'organizerId': organizerId,
       // Tickets sont sauvegardés séparément
     };
@@ -53,8 +52,9 @@ class Event {
       description: map['description'],
       maxCapacity: map['maxCapacity'],
       status: map['status'],
-      imageUrl: map['imageUrl'],
+      imageUrls: List<String>.from(map['imageUrls'] ?? []), // Conversion en liste
       organizerId: map['organizerId'],
+      ticketTypes: null, // Vous devrez peut-être charger ces séparément
     );
   }
 
