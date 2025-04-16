@@ -1,6 +1,7 @@
 import 'package:du_agbe/Services/Firebase/auth.dart';
 import 'package:du_agbe/homePage.dart';
 import 'package:du_agbe/inscription.dart';
+import 'package:du_agbe/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -216,7 +217,7 @@ class _ConnexionpageState extends State<ConnexionPage> {
  
          Navigator.pushReplacement(
            context, 
-           MaterialPageRoute(builder: (context) => const Homepage())
+           MaterialPageRoute(builder: (context) =>  MyHomePage())
          );
        } catch (e) {
          print("voici le probleme $e");

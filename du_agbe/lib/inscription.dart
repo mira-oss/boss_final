@@ -111,7 +111,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
                   SizedBox(height: 10),
                   TextFormField(
                     controller: email,
-                    validator: validateEmail,
+                   // validator: validateEmail,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:du_agbe/details.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -11,41 +15,130 @@ class Homepage extends StatefulWidget {
 
 class _HomepageState extends State<Homepage> {
   final List<Map<String, dynamic>> categories = [
-    {"icon": FontAwesomeIcons.utensils, "label": "Restaurants", "color": Colors.red},
-    {"icon": FontAwesomeIcons.shoppingBag, "label": "Shopping", "color": Colors.blue},
-    {"icon": FontAwesomeIcons.umbrellaBeach, "label": "Plages", "color": Colors.teal},
-    {"icon": FontAwesomeIcons.music, "label": "Événements", "color": Colors.purple},
+    {
+      "icon": FontAwesomeIcons.utensils,
+      "label": "Restaurants",
+      "color": Colors.red
+    },
+    {
+      "icon": FontAwesomeIcons.shoppingBag,
+      "label": "Shopping",
+      "color": Colors.blue
+    },
+    {
+      "icon": FontAwesomeIcons.umbrellaBeach,
+      "label": "Plages",
+      "color": Colors.teal
+    },
+    {
+      "icon": FontAwesomeIcons.music,
+      "label": "Événements",
+      "color": Colors.purple
+    },
     {"icon": FontAwesomeIcons.mugHot, "label": "Cafés", "color": Colors.brown},
-    {"icon": FontAwesomeIcons.landmark, "label": "Culture", "color": Colors.orange},
+    {
+      "icon": FontAwesomeIcons.landmark,
+      "label": "Culture",
+      "color": Colors.orange
+    },
   ];
-  
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<Map<String, dynamic>> _events = [];
   late stt.SpeechToText _speech;
   bool _isListening = false;
   bool _speechEnabled = false;
   String _text = '';
   String _errorMessage = '';
-  
+  List<Map<String, dynamic>> events = [];
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
     _checkPermissionAndInitSpeech();
+    _fetchPublishedEvents();
   }
-  
+
+  void _toggleFavorite(int index) {
+    setState(() {
+      events[index]['isFavorite'] = !events[index]['isFavorite'];
+    });
+    // Ici vous pourriez enregistrer le favori en base de données
+  }
+
+  Future<void> _fetchPublishedEvents() async {
+  try {
+    QuerySnapshot querySnapshot = await _firestore
+        .collection('events')
+        .where('status', isEqualTo: 'published')
+        .get();
+    
+    List<Map<String, dynamic>> fetchedEvents = [];
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      // Vérification approfondie des images
+      String imageUrl = '';
+      if (data['imageUrls'] != null && 
+          data['imageUrls'] is List && 
+          (data['imageUrls'] as List).isNotEmpty) {
+        
+        final firstImage = data['imageUrls'][0];
+        if (firstImage is String) {
+          if (firstImage.startsWith('data:image')) {
+            // Image en base64 avec entête
+            imageUrl = firstImage;
+          } else if (firstImage.startsWith('http')) {
+            // URL classique
+            imageUrl = firstImage;
+          } else {
+            // Chaîne base64 sans entête - on ajoute l'entête manquant
+            imageUrl = 'data:image/jpeg;base64,$firstImage';
+          }
+        }
+      }
+
+      fetchedEvents.add({
+        //'date': (data['date'] as Timestamp), 
+        'id': doc.id,
+        'title': data['title'] ?? 'Sans titre',
+        'description': data['description'] ?? '',
+        'location': data['location'] ?? 'Lieu non spécifié',
+        'imageUrl': imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/150',
+        'isFavorite': false,
+      });
+    }
+
+    setState(() {
+      events = fetchedEvents;
+      _isLoading = false;
+    });
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+      _errorMessage = 'Erreur de chargement: ${e.toString()}';
+    });
+    print('Erreur Firestore: $e');
+  }
+}
+
   // Vérifier les permissions et initialiser le système de reconnaissance vocale
   Future<void> _checkPermissionAndInitSpeech() async {
     try {
       // Demander la permission du microphone dès le démarrage
       final micPermission = await Permission.microphone.request();
       if (!micPermission.isGranted) {
-        setState(() => _errorMessage = 'Permission microphone nécessaire pour utiliser cette fonctionnalité');
+        setState(() => _errorMessage =
+            'Permission microphone nécessaire pour utiliser cette fonctionnalité');
         return;
       }
-      
+
       // Initialiser le système de reconnaissance vocale
       _initSpeech();
     } catch (e) {
-      setState(() => _errorMessage = 'Erreur lors de la vérification des permissions: $e');
+      setState(() =>
+          _errorMessage = 'Erreur lors de la vérification des permissions: $e');
     }
   }
 
@@ -66,7 +159,8 @@ class _HomepageState extends State<Homepage> {
       );
       setState(() => _speechEnabled = available);
       if (!available) {
-        setState(() => _errorMessage = 'La reconnaissance vocale n\'est pas disponible sur cet appareil');
+        setState(() => _errorMessage =
+            'La reconnaissance vocale n\'est pas disponible sur cet appareil');
       }
     } catch (e) {
       setState(() => _errorMessage = 'Erreur d\'initialisation: $e');
@@ -77,7 +171,8 @@ class _HomepageState extends State<Homepage> {
   Future<void> _listen() async {
     // Vérifier si l'initialisation a réussi
     if (!_speechEnabled) {
-      setState(() => _errorMessage = 'La reconnaissance vocale n\'est pas disponible');
+      setState(() =>
+          _errorMessage = 'La reconnaissance vocale n\'est pas disponible');
       return;
     }
 
@@ -106,10 +201,10 @@ class _HomepageState extends State<Homepage> {
           _isListening = true;
           _errorMessage = '';
         });
-        
+
         // Effacer le texte précédent lors d'une nouvelle écoute
         setState(() => _text = '');
-        
+
         await _speech.listen(
           onResult: (result) => setState(() {
             _text = result.recognizedWords;
@@ -154,15 +249,15 @@ class _HomepageState extends State<Homepage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Hello,", style: TextStyle(fontSize: 16)),
-                      Text("Prêt pour une belle journée ?", 
+                      Text("Prêt pour une belle journée ?",
                           style: TextStyle(fontSize: 14, color: Colors.grey)),
                     ],
                   ),
                 ],
               ),
-              
+
               SizedBox(height: 30),
-              
+
               // Barre de recherche
               Row(
                 children: [
@@ -170,7 +265,9 @@ class _HomepageState extends State<Homepage> {
                     child: TextField(
                       controller: TextEditingController(text: _text),
                       decoration: InputDecoration(
-                        hintText: _isListening ? 'Parlez maintenant...' : 'Dites-nous ce que vous voulez...',
+                        hintText: _isListening
+                            ? 'Parlez maintenant...'
+                            : 'Dites-nous ce que vous voulez...',
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
@@ -178,7 +275,8 @@ class _HomepageState extends State<Homepage> {
                         ),
                         filled: true,
                         fillColor: Colors.grey[200],
-                        contentPadding: EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 15, horizontal: 20),
                       ),
                     ),
                   ),
@@ -188,8 +286,11 @@ class _HomepageState extends State<Homepage> {
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 300),
                       decoration: BoxDecoration(
-                        color: _isListening ? Colors.red : 
-                               _speechEnabled ? Colors.orange : Colors.grey,
+                        color: _isListening
+                            ? Colors.red
+                            : _speechEnabled
+                                ? Colors.orange
+                                : Colors.grey,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       padding: EdgeInsets.all(12),
@@ -201,7 +302,7 @@ class _HomepageState extends State<Homepage> {
                   ),
                 ],
               ),
-              
+
               if (_errorMessage.isNotEmpty) ...[
                 SizedBox(height: 10),
                 Text(
@@ -209,7 +310,7 @@ class _HomepageState extends State<Homepage> {
                   style: TextStyle(color: Colors.red, fontSize: 12),
                 ),
               ],
-              
+
               if (_text.isNotEmpty) ...[
                 SizedBox(height: 20),
                 Text(
@@ -226,15 +327,15 @@ class _HomepageState extends State<Homepage> {
                   child: Text(_text),
                 ),
               ],
-              
+
               SizedBox(height: 30),
-              
+
               // Titre section catégories
-              Text("Catégories", 
+              Text("Catégories",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              
+
               SizedBox(height: 15),
-              
+
               // Liste horizontale des catégories
               Container(
                 height: 100,
@@ -248,7 +349,8 @@ class _HomepageState extends State<Homepage> {
                         children: [
                           CircleAvatar(
                             radius: 30,
-                            backgroundColor: categories[index]["color"]!.withOpacity(0.2),
+                            backgroundColor:
+                                categories[index]["color"]!.withOpacity(0.2),
                             child: Icon(
                               categories[index]["icon"],
                               color: categories[index]["color"],
@@ -266,10 +368,168 @@ class _HomepageState extends State<Homepage> {
                   },
                 ),
               ),
-            ],
+
+              SizedBox(height: 30),
+
+              // Section Événements
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Événements récents",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  TextButton(
+                    onPressed: () {
+                      // Navigation vers une page listant tous les événements
+                    },
+                    child: Text("Voir tout",
+                        style: TextStyle(color: Colors.orange)),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: 15),
+              
+              _isLoading 
+  ? Center(child: CircularProgressIndicator())
+  : events.isEmpty
+    ? Center(child: Text("Aucun événement à afficher"))
+    : ListView.builder(
+  physics: NeverScrollableScrollPhysics(),
+  shrinkWrap: true,
+  itemCount: events.length,
+  itemBuilder: (context, index) {
+    final event = events[index];
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EventDetailsPage(event: event),
           ),
-        ),
+        );
+      },
+      child: Card(
+        margin: EdgeInsets.only(bottom: 20),
+        shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Image de l'événement
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+              child: _buildEventImage(event['imageUrl']),
+            ),
+            Padding(
+                  padding: EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Titre et bouton favori
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              event['title'],
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              event['isFavorite'] ? Icons.favorite : Icons.favorite_border,
+                              color: event['isFavorite'] ? Colors.red : Colors.grey,
+                            ),
+                            onPressed: () => _toggleFavorite(index),
+                          ),
+                        ],
+                      ),
+                      
+                      SizedBox(height: 5),
+                      
+                      // Description
+                      Text(
+                        event['description'],
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      
+                      if (event['location'] != null) ...[
+                        SizedBox(height: 10),
+                        // Localisation
+                        Row(
+                          children: [
+                            Icon(Icons.location_on, size: 16, color: Colors.grey),
+                            SizedBox(width: 5),
+                            Text(
+                              event['location'],
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
       ),
+    );
+  },
+)
+      
+       ],
+),
+
+)
+      )  
+           
+    );
+    
+  }
+}
+Widget _buildErrorImage() {
+  return Container(
+    height: 150,
+    color: Colors.grey[300],
+    child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported, size: 40, color: Colors.grey[600]),
+          SizedBox(height: 8),
+          Text('Image non disponible', style: TextStyle(color: Colors.grey[600])),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildEventImage(String imageUrl) {
+  if (imageUrl.startsWith('data:image')) {
+    try {
+      final encodedString = imageUrl.split(',').last;
+      return Image.memory(
+        base64Decode(encodedString),
+        height: 150,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildErrorImage(),
+      );
+    } catch (e) {
+      print('Erreur de décodage base64: $e');
+      return _buildErrorImage();
+    }
+  } else {
+    return Image.network(
+      imageUrl,
+      height: 150,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _buildErrorImage(),
     );
   }
 }

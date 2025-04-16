@@ -61,7 +61,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late PageController _pageController;
   int selectedIndex = 0;
-  final pages = const [
+  final pages =  [
     Homepage(),
     Profil(),
   ];
