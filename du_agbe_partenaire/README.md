@@ -1,4 +1,4 @@
-# du_agbe_partenaire
+# patenaire
 
 A new Flutter project.
 
