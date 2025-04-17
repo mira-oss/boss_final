@@ -1,4 +1,4 @@
-name: patenaire
+name: du_agbe_pro
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -34,23 +34,35 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_core: ^3.13.0
-  cloud_firestore: ^5.6.6
+  fl_chart: ^0.65.0
+  intl: ^0.17.0
+  cached_network_image: ^3.4.1
   firebase_storage: ^12.4.5
-  firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.6
   image_picker: ^1.1.2
-  intl: ^0.20.2
-  provider: ^6.1.4
-  image_cropper: ^9.1.0
-  reorderables: ^0.6.0
-  fl_chart: ^0.70.2
-  dio: ^5.8.0+1
-  uuid: ^4.5.1
-  path_provider: ^2.1.5
-  path: ^1.9.1
-  http: ^1.3.0
-  firebase_messaging: ^15.2.5
+  font_awesome_flutter: ^10.8.0
+  timeago: ^3.2.2
   flutter_local_notifications: ^19.1.0
+  badges: ^3.1.2
+  provider: ^6.1.4
+  flutter_animate: ^4.5.2
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  path_provider: ^2.1.5
+  flutter_staggered_animations: ^1.1.1
+  flutter_slidable: ^4.0.0
+  firebase_core: ^3.13.0
+  share_plus: ^10.1.4
+  shimmer: ^3.0.0
+  uuid: ^4.5.1
+  flutter_staggered_grid_view: ^0.7.0
+  flutter_rating_bar: ^4.0.1
+  firebase_auth: ^5.5.2
+  animated_text_kit: ^4.2.3
+  flutter_switch: ^0.3.2
+  shared_preferences: ^2.5.3
+  permission_handler: ^12.0.0+1
+  sliding_clipped_nav_bar: ^3.1.1
 
 dev_dependencies:
   flutter_test:
