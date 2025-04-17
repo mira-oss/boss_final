@@ -20,7 +20,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Gérez votre établissement plus facilement avec nos outils intuitifs.',
       imageUrl:
-          'https://tse2.mm.bing.net/th?id=OIP.miikC3JHrLhxag8rhyBXqwHaHa&pid=Api&P=0&h=180', // Remplacez par votre URL
+          'https://tse2.mm.bing.net/th?id=OIP.miikC3JHrLhxag8rhyBXqwHaHa&pid=Api&P=0&h=180',
       icon: Icons.restaurant_menu,
       color: Colors.blue.shade800,
     ),
@@ -29,7 +29,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Suivez votre activité en temps réel et prenez des décisions informées.',
       imageUrl:
-          'https://tse1.mm.bing.net/th?id=OIP.jqJmRpMaDr8FnwDLsE9efAHaHa&pid=Api&P=0&h=180', // Remplacez par votre URL
+          'https://tse1.mm.bing.net/th?id=OIP.jqJmRpMaDr8FnwDLsE9efAHaHa&pid=Api&P=0&h=180',
       icon: Icons.insights,
       color: Colors.green.shade700,
     ),
@@ -38,7 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Facilitez la communication entre les membres de votre équipe.',
       imageUrl:
-          'https://tse4.mm.bing.net/th?id=OIP._15F1G6pZ_m9EwGhi5oL_wHaFj&pid=Api&P=0&h=180', // Remplacez par votre URL
+          'https://tse4.mm.bing.net/th?id=OIP._15F1G6pZ_m9EwGhi5oL_wHaFj&pid=Api&P=0&h=180',
       icon: Icons.people,
       color: Colors.orange.shade800,
     ),
@@ -50,18 +50,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  // Sauvegarde dans les préférences que l'onboarding est terminé
   void _markOnboardingComplete() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboardingComplete', true);
   }
 
+  // Méthode pour naviguer vers la page de connexion
   void _goToLogin() {
     _markOnboardingComplete();
+    // Assure une transition de remplacement pour éviter de revenir à l'onboarding
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginPage()),
     );
   }
 
+  // Méthode pour passer à la page suivante ou aller au login si c'est la dernière
   void _nextPage() {
     if (_currentPage < _onboardingItems.length - 1) {
       _pageController.nextPage(
@@ -84,7 +88,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Padding(
                 padding: const EdgeInsets.only(top: 16.0, right: 16.0),
                 child: TextButton(
-                  onPressed: _goToLogin,
+                  onPressed:
+                      _goToLogin, // Appelle _goToLogin lorsque "Passer" est cliqué
                   child: const Text(
                     'Passer',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -134,9 +139,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
 
-                  // Bouton de navigation
+                  // Bouton de navigation - "Suivant" ou "Commencer"
                   ElevatedButton(
-                    onPressed: _nextPage,
+                    onPressed:
+                        _nextPage, // Appelle _nextPage qui va au login à la fin
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _onboardingItems[_currentPage].color,
                       foregroundColor: Colors.white,
@@ -150,8 +156,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     child: Text(
                       _currentPage == _onboardingItems.length - 1
-                          ? 'Commencer'
-                          : 'Suivant',
+                          ? 'Commencer' // Sur la dernière page
+                          : 'Suivant', // Sur les pages intermédiaires
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -261,14 +267,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class OnboardingItem {
   final String title;
   final String description;
-  final String imageUrl; // Changé de imagePath à imageUrl
+  final String imageUrl;
   final IconData icon;
   final Color color;
 
   OnboardingItem({
     required this.title,
     required this.description,
-    required this.imageUrl, // Changé ici aussi
+    required this.imageUrl,
     required this.icon,
     required this.color,
   });

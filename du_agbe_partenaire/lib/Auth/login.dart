@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:du_agbe_pro/dashboard.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -90,7 +91,9 @@ class _LoginPageState extends State<LoginPage>
           await _saveCredentials();
         }
         // Navigation vers la page d'accueil après connexion réussie
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DashboardPage()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String message;
@@ -134,11 +137,8 @@ class _LoginPageState extends State<LoginPage>
         opacity: _fadeAnimation,
         child: SafeArea(
           child: SingleChildScrollView(
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.all(24.0),
-              height: size.height - MediaQuery.of(context).padding.top,
-              width: size.width,
-
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -351,7 +351,7 @@ class _LoginPageState extends State<LoginPage>
                       ],
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 30),
                   // Option d'inscription
                   Center(
                     child: Row(
