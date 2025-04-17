@@ -48,6 +48,9 @@ dependencies:
   fluttertoast: ^8.2.12
   google_fonts: ^6.2.1
   kkiapay_flutter_sdk: ^1.2.12
+  open_street_map_search_and_pick: ^0.1.1
+  latlong2: ^0.9.1
+  flutter_typeahead: ^5.2.0
 
 dev_dependencies:
   flutter_test:

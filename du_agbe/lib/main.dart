@@ -1,11 +1,12 @@
+import 'package:du_agbe/map.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'paiement.dart'; // Assurez-vous que ce chemin est correct
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialisation de Firebase
+  
   await Firebase.initializeApp();
 
   runApp(
@@ -15,7 +16,7 @@ Future<void> main() async {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: PaymentScreen(),
+      home: Stepdumaps(),
     ),
   );
 }

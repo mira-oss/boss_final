@@ -279,7 +279,7 @@ class PaymentScreen extends StatelessWidget {
     );
   }
 
-  // Widget pour les boutons de paiement
+ 
   Widget _buildPayButtons(BuildContext context) {
     return Column(
       children: <Widget>[
