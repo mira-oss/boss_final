@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'Profil.dart';
 
 // Modèles pour les données
 class Order {
@@ -246,7 +247,11 @@ class _DashboardPageState extends State<DashboardPage>
             child: GestureDetector(
               onTap: () {
                 // Naviguer vers la page profil
-                _navigateTo(context, 'ProfilePage');
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileSettingsPage(),
+                  ),
+                );
               },
               child: const CircleAvatar(
                 radius: 16,

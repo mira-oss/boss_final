@@ -11,10 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+// Ces classes restent inchangées
 class ThemeProvider with ChangeNotifier {
   bool _isDarkMode;
 
-  ThemeProvider(this._isDarkMode); // constructeur qui accepte isDarkMode
+  ThemeProvider(this._isDarkMode);
 
   bool get isDarkMode => _isDarkMode;
 
@@ -49,7 +50,6 @@ class ThemeProvider with ChangeNotifier {
           );
 }
 
-// Un provider pour gérer la langue de l'application
 class LocaleProvider with ChangeNotifier {
   String _currentLocale = 'fr';
 
@@ -77,7 +77,6 @@ class LocaleProvider with ChangeNotifier {
   }
 }
 
-// Un service pour gérer les notifications
 class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -119,6 +118,41 @@ class NotificationService {
   Future<bool> areNotificationsEnabled() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getBool('notificationsEnabled') ?? false;
+  }
+}
+
+// La classe wrapper qui encapsule le ProfileSettingsPage avec les providers nécessaires
+class ProfileSettingsWrapper extends StatelessWidget {
+  const ProfileSettingsWrapper({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // Initialiser les providers ici et les passer au widget enfant
+    return FutureBuilder<SharedPreferences>(
+      future: SharedPreferences.getInstance(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Récupérer les préférences utilisateur
+        final prefs = snapshot.data!;
+        final isDarkMode = prefs.getBool('isDarkMode') ?? false;
+
+        // Fournir les providers nécessaires
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>(
+              create: (_) => ThemeProvider(isDarkMode),
+            ),
+            ChangeNotifierProvider<LocaleProvider>(
+              create: (_) => LocaleProvider(),
+            ),
+          ],
+          child: const ProfileSettingsPage(),
+        );
+      },
+    );
   }
 }
 
@@ -434,6 +468,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
 
   @override
   Widget build(BuildContext context) {
+    // Assurez-vous que les providers sont disponibles
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
 
@@ -882,7 +917,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        // Apparence
+                        // Card pour l'apparence
                         Card(
                           elevation: 4,
                           shape: RoundedRectangleBorder(
@@ -902,44 +937,18 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                 ),
                                 const SizedBox(height: 16),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      themeProvider.isDarkMode
-                                          ? Icons.dark_mode
-                                          : Icons.light_mode,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
-                                  ),
                                   title: const Text('Mode sombre'),
-                                  subtitle: Text(
-                                    themeProvider.isDarkMode
-                                        ? 'Activé'
-                                        : 'Désactivé',
+                                  subtitle: const Text(
+                                    'Activer/désactiver le thème sombre',
                                   ),
                                   trailing: FlutterSwitch(
-                                    width: 50.0,
-                                    height: 25.0,
-                                    valueFontSize: 12.0,
-                                    toggleSize: 18.0,
-                                    activeColor:
-                                        themeProvider.isDarkMode
-                                            ? Colors.tealAccent
-                                            : Colors.teal,
+                                    width: 60,
+                                    height: 30,
+                                    toggleSize: 25,
+                                    activeColor: Colors.tealAccent,
+                                    inactiveColor: Colors.grey,
                                     value: themeProvider.isDarkMode,
-                                    onToggle: (val) {
+                                    onToggle: (value) {
                                       themeProvider.toggleTheme();
                                     },
                                   ),
@@ -950,7 +959,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                         ),
                         const SizedBox(height: 20),
 
-                        // Langue
+                        // Préférences de langue
                         Card(
                           elevation: 4,
                           shape: RoundedRectangleBorder(
@@ -969,51 +978,33 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                DropdownButtonFormField<String>(
-                                  value: localeProvider.currentLocale,
-                                  decoration: InputDecoration(
-                                    labelText: 'Langue de l\'application',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    prefixIcon: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      child: Icon(
-                                        Icons.language,
-                                        color:
-                                            themeProvider.isDarkMode
-                                                ? Colors.tealAccent
-                                                : Colors.teal,
-                                      ),
-                                    ),
-                                  ),
-                                  items: [
-                                    DropdownMenuItem<String>(
-                                      value: 'fr',
-                                      child: Row(
-                                        children: [
-                                          const Text('🇫🇷'),
-                                          const SizedBox(width: 10),
-                                          const Text('Français'),
-                                        ],
-                                      ),
-                                    ),
-                                    DropdownMenuItem<String>(
-                                      value: 'en',
-                                      child: Row(
-                                        children: [
-                                          const Text('🇬🇧'),
-                                          const SizedBox(width: 10),
-                                          const Text('English'),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (String? newValue) {
-                                    if (newValue != null) {
-                                      localeProvider.setLocale(newValue);
+                                RadioListTile<String>(
+                                  title: const Text('Français'),
+                                  value: 'fr',
+                                  groupValue: localeProvider.currentLocale,
+                                  onChanged: (String? value) {
+                                    if (value != null) {
+                                      localeProvider.setLocale(value);
                                     }
                                   },
+                                  activeColor:
+                                      themeProvider.isDarkMode
+                                          ? Colors.tealAccent
+                                          : Colors.teal,
+                                ),
+                                RadioListTile<String>(
+                                  title: const Text('English'),
+                                  value: 'en',
+                                  groupValue: localeProvider.currentLocale,
+                                  onChanged: (String? value) {
+                                    if (value != null) {
+                                      localeProvider.setLocale(value);
+                                    }
+                                  },
+                                  activeColor:
+                                      themeProvider.isDarkMode
+                                          ? Colors.tealAccent
+                                          : Colors.teal,
                                 ),
                               ],
                             ),
@@ -1041,93 +1032,21 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                 ),
                                 const SizedBox(height: 16),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      Icons.notifications,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
+                                  title: const Text(
+                                    'Activer les notifications',
                                   ),
-                                  title: const Text('Notifications push'),
                                   subtitle: const Text(
-                                    'Pour les nouvelles commandes et messages',
+                                    'Recevoir des alertes pour les nouvelles commandes',
                                   ),
                                   trailing: FlutterSwitch(
-                                    width: 50.0,
-                                    height: 25.0,
-                                    valueFontSize: 12.0,
-                                    toggleSize: 18.0,
-                                    activeColor:
-                                        themeProvider.isDarkMode
-                                            ? Colors.tealAccent
-                                            : Colors.teal,
+                                    width: 60,
+                                    height: 30,
+                                    toggleSize: 25,
+                                    activeColor: Colors.tealAccent,
+                                    inactiveColor: Colors.grey,
                                     value: _notificationsEnabled,
                                     onToggle: _toggleNotifications,
                                   ),
-                                ),
-                                const Divider(),
-                                CheckboxListTile(
-                                  title: const Text('Nouvelles commandes'),
-                                  subtitle: const Text(
-                                    'Soyez alerté quand une nouvelle commande arrive',
-                                  ),
-                                  value: _notificationsEnabled,
-                                  activeColor:
-                                      themeProvider.isDarkMode
-                                          ? Colors.tealAccent
-                                          : Colors.teal,
-                                  onChanged:
-                                      _notificationsEnabled
-                                          ? (bool? value) {
-                                            // Cette option est liée à l'option principale
-                                          }
-                                          : null,
-                                ),
-                                CheckboxListTile(
-                                  title: const Text('Messages clients'),
-                                  subtitle: const Text(
-                                    'Soyez alerté quand un client vous envoie un message',
-                                  ),
-                                  value: _notificationsEnabled,
-                                  activeColor:
-                                      themeProvider.isDarkMode
-                                          ? Colors.tealAccent
-                                          : Colors.teal,
-                                  onChanged:
-                                      _notificationsEnabled
-                                          ? (bool? value) {
-                                            // Cette option est liée à l'option principale
-                                          }
-                                          : null,
-                                ),
-                                CheckboxListTile(
-                                  title: const Text('Promotions'),
-                                  subtitle: const Text(
-                                    'Soyez alerté des opportunités de promotion',
-                                  ),
-                                  value: _notificationsEnabled,
-                                  activeColor:
-                                      themeProvider.isDarkMode
-                                          ? Colors.tealAccent
-                                          : Colors.teal,
-                                  onChanged:
-                                      _notificationsEnabled
-                                          ? (bool? value) {
-                                            // Cette option est liée à l'option principale
-                                          }
-                                          : null,
                                 ),
                               ],
                             ),
@@ -1135,7 +1054,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                         ),
                         const SizedBox(height: 20),
 
-                        // À propos
+                        // À propos de l'application
                         Card(
                           elevation: 4,
                           shape: RoundedRectangleBorder(
@@ -1155,24 +1074,12 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                 ),
                                 const SizedBox(height: 16),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      Icons.info,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
+                                  leading: Icon(
+                                    Icons.info_outline,
+                                    color:
+                                        themeProvider.isDarkMode
+                                            ? Colors.tealAccent
+                                            : Colors.teal,
                                   ),
                                   title: const Text(
                                     'Version de l\'application',
@@ -1181,24 +1088,12 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                 ),
                                 const Divider(),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      Icons.policy,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
+                                  leading: Icon(
+                                    Icons.policy_outlined,
+                                    color:
+                                        themeProvider.isDarkMode
+                                            ? Colors.tealAccent
+                                            : Colors.teal,
                                   ),
                                   title: const Text(
                                     'Politique de confidentialité',
@@ -1208,29 +1103,17 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                     size: 16,
                                   ),
                                   onTap: () {
-                                    // Navigation vers la page de politique de confidentialité
+                                    // Navigation vers la politique de confidentialité
                                   },
                                 ),
                                 const Divider(),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      Icons.description,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
+                                  leading: Icon(
+                                    Icons.description_outlined,
+                                    color:
+                                        themeProvider.isDarkMode
+                                            ? Colors.tealAccent
+                                            : Colors.teal,
                                   ),
                                   title: const Text(
                                     'Conditions d\'utilisation',
@@ -1240,101 +1123,31 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                     size: 16,
                                   ),
                                   onTap: () {
-                                    // Navigation vers la page des conditions d'utilisation
+                                    // Navigation vers les conditions d'utilisation
                                   },
                                 ),
                                 const Divider(),
                                 ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent.withOpacity(
-                                                0.2,
-                                              )
-                                              : Colors.teal.withOpacity(0.2),
-                                    ),
-                                    child: Icon(
-                                      Icons.help,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.tealAccent
-                                              : Colors.teal,
-                                    ),
+                                  leading: Icon(
+                                    Icons.help_outline,
+                                    color:
+                                        themeProvider.isDarkMode
+                                            ? Colors.tealAccent
+                                            : Colors.teal,
                                   ),
-                                  title: const Text('Aide et support'),
+                                  title: const Text('Centre d\'aide'),
                                   trailing: const Icon(
                                     Icons.arrow_forward_ios,
                                     size: 16,
                                   ),
                                   onTap: () {
-                                    // Navigation vers la page d'aide
-                                  },
-                                ),
-                                const Divider(),
-                                ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          themeProvider.isDarkMode
-                                              ? Colors.red.withOpacity(0.2)
-                                              : Colors.red.withOpacity(0.2),
-                                    ),
-                                    child: const Icon(
-                                      Icons.delete_forever,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                  title: const Text('Supprimer mon compte'),
-                                  trailing: const Icon(
-                                    Icons.arrow_forward_ios,
-                                    size: 16,
-                                    color: Colors.red,
-                                  ),
-                                  onTap: () {
-                                    // Afficher une boîte de dialogue de confirmation
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) {
-                                        return AlertDialog(
-                                          title: const Text(
-                                            'Supprimer le compte',
-                                          ),
-                                          content: const Text(
-                                            'Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et toutes vos données seront perdues.',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () {
-                                                Navigator.of(context).pop();
-                                              },
-                                              child: const Text('Annuler'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                // Logique de suppression du compte
-                                                Navigator.of(context).pop();
-                                              },
-                                              style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red,
-                                              ),
-                                              child: const Text('Supprimer'),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
+                                    // Navigation vers le centre d'aide
                                   },
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
