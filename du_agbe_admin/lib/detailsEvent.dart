@@ -12,7 +12,7 @@ import 'package:intl/intl.dart';
 class EventDetailScreen extends StatefulWidget {
   final String eventId;
 
-  const EventDetailScreen({required this.eventId});
+  const EventDetailScreen({super.key, required this.eventId});
 
   @override
   _EventDetailScreenState createState() => _EventDetailScreenState();

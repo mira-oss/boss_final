@@ -9,7 +9,7 @@ class GenerateTicketsScreen extends StatefulWidget {
   final String eventId;
   final List<TicketType> ticketTypes;
 
-  const GenerateTicketsScreen({
+  const GenerateTicketsScreen({super.key, 
     required this.eventId,
     required this.ticketTypes,
   });

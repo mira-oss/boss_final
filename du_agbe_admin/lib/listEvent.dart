@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 class EventListScreen extends StatelessWidget {
   final DatabaseService _databaseService = DatabaseService();
 
+  EventListScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,7 +70,7 @@ class EventCard extends StatelessWidget {
   final Event event;
   final VoidCallback onTap;
 
-  const EventCard({required this.event, required this.onTap});
+  const EventCard({super.key, required this.event, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

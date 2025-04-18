@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 class AddCategoryForm extends StatefulWidget {
   final Map<String, dynamic>? existingCategory;
 
-  const AddCategoryForm({Key? key, this.existingCategory}) : super(key: key);
+  const AddCategoryForm({super.key, this.existingCategory});
 
   @override
   _AddCategoryFormState createState() => _AddCategoryFormState();
@@ -166,7 +165,7 @@ class _AddCategoryFormState extends State<AddCategoryForm> {
                 spacing: 10,
                 children: _availableColors.map((colorHex) {
                   return ChoiceChip(
-                    label: Container(width: 24, height: 24),
+                    label: SizedBox(width: 24, height: 24),
                     selected: _color == colorHex,
                     onSelected: (selected) {
                       setState(() {
@@ -218,17 +217,17 @@ class _AddCategoryFormState extends State<AddCategoryForm> {
               Center(
                 child: ElevatedButton(
                   onPressed: _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: HexColor('#2196F3'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                     child: Text(
                       widget.existingCategory == null ? 'AJOUTER' : 'MODIFIER',
                       style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: HexColor('#2196F3'),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
                     ),
                   ),
                 ),

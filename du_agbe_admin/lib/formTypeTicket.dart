@@ -9,7 +9,7 @@ class TicketTypeFormScreen extends StatefulWidget {
   final String eventId;
   final TicketType? ticketType;
 
-  const TicketTypeFormScreen({
+  const TicketTypeFormScreen({super.key, 
     required this.eventId,
     this.ticketType,
   });

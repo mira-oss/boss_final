@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 class TicketTypesScreen extends StatefulWidget {
   final String eventId;
 
-  const TicketTypesScreen({required this.eventId});
+  const TicketTypesScreen({super.key, required this.eventId});
 
   @override
   _TicketTypesScreenState createState() => _TicketTypesScreenState();
@@ -131,7 +131,7 @@ class TicketTypeCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const TicketTypeCard({
+  const TicketTypeCard({super.key, 
     required this.ticketType,
     required this.onEdit,
     required this.onDelete,

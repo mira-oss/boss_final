@@ -9,7 +9,7 @@ class TicketPreviewScreen extends StatefulWidget {
   final Ticket ticket;
   final String eventId;
 
-  const TicketPreviewScreen({
+  const TicketPreviewScreen({super.key, 
     required this.ticket,
     required this.eventId,
   });
@@ -213,7 +213,7 @@ class _TicketPreviewScreenState extends State<TicketPreviewScreen> {
             ),
             
             // Ligne de séparation avec effet déchiré
-            Container(
+            SizedBox(
               height: 30,
               child: Stack(
                 children: [

@@ -1,6 +1,6 @@
 
 import 'package:du_agbe_admin/connexion.dart';
-import 'package:du_agbe_admin/main.dart';
+import 'package:du_agbe_admin/screens/home.dart';
 import 'package:du_agbe_admin/services/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -209,7 +209,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const MyHomePage(),
+                                      builder: (context) => const HomePage(),
                                     ),
                                   );
                                 } on FirebaseAuthException catch (e) {

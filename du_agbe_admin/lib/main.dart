@@ -1,31 +1,59 @@
+import 'package:du_agbe_admin/creatEvent.dart';
+import 'package:du_agbe_admin/inscription.dart';
+import 'package:du_agbe_admin/screens/ajout-lieu.dart';
+import 'package:du_agbe_admin/screens/home.dart';
+import 'package:du_agbe_admin/screens/lieux.dart';
+import 'package:du_agbe_admin/screens/onboarding_1.dart';
+import 'package:du_agbe_admin/screens/onboarding_2.dart';
+import 'package:du_agbe_admin/screens/onboarding_3.dart';
+import 'package:du_agbe_admin/screens/splash_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'package:du_agbe_admin/connexion.dart';
-import 'package:du_agbe_admin/firebase_options.dart';
 import 'package:du_agbe_admin/listEvent.dart';
 import 'package:du_agbe_admin/profil.dart';
 import 'package:du_agbe_admin/themeNotifier.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:du_agbe/theme_notifier.dart'; // Importez le ThemeNotifier
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sliding_clipped_nav_bar/sliding_clipped_nav_bar.dart';
 
-Future<void> main() async {
+
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeNotifier(),
-      child: const MyApp(),
-    ),
-  );
+  await Firebase.initializeApp();
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
+  
   @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Lieux & Events',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.deepPurple),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/onboarding1': (context) => const Onboarding1(),
+        '/onboarding2': (context) => const Onboarding2(),
+        '/onboarding3': (context) => const Onboarding3(),
+        '/login': (context) => const ConnexionPage(),
+        '/home': (context) => const HomePage(),
+        '/lieux': (context) => const Lieux(),
+        '/ajout-lieu':(context) => AjoutLieu(),
+        '/register': (context) => const InscriptionPage(),
+        '/creatEvent': (context) => const CreateEventScreen(),
+      },
+    );
+  }
+}
+
+@override
   Widget build(BuildContext context) {
     final themeNotifier = Provider.of<ThemeNotifier>(context);
 
@@ -42,7 +70,7 @@ class MyApp extends StatelessWidget {
           }
           if (snapshot.hasData && snapshot.data != null) {
             // Utilisateur déjà connecté
-            return  const MyHomePage();
+            return  const HomePage();
           }
           // Utilisateur non connecté
           return  ConnexionPage();
@@ -50,9 +78,8 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
-}
 
-class MyHomePage extends StatefulWidget {
+  class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
 
   @override

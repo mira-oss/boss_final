@@ -10,7 +10,7 @@ import 'dart:convert';
 class CreateEventScreen extends StatefulWidget {
   final Event? event;
 
-  const CreateEventScreen({Key? key, this.event}) : super(key: key);
+  const CreateEventScreen({super.key, this.event});
 
   @override
   _CreateEventScreenState createState() => _CreateEventScreenState();
