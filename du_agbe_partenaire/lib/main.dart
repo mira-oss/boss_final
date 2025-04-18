@@ -1,125 +1,285 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart';
+import 'package:sliding_clipped_nav_bar/sliding_clipped_nav_bar.dart';
+// Import des pages
+import 'dashboard.dart';
+import 'Modifier_Fiche.dart';
+import 'suivie_commande.dart';
+import 'statistiques.dart';
+import 'gestion_visuel.dart';
+import 'Avis_interactions.dart';
+import 'profil.dart';
+import 'Auth/Oneboarding_screen.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  debugProfileBuildsEnabled = true;
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Color(0xFF1565C0),
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  final prefs = await SharedPreferences.getInstance();
+  final isDarkMode = prefs.getBool('isDarkMode') ?? false;
+  final currentLocale = prefs.getString('locale') ?? 'fr';
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider(isDarkMode)),
+        ChangeNotifierProvider(
+          create: (_) => LocaleProvider()..setLocale(currentLocale),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final localeProvider = Provider.of<LocaleProvider>(context);
+
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      title: 'Partenaire',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primaryColor: const Color(0xFF1565C0),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1565C0),
+          primary: const Color(0xFF1565C0),
+        ),
+        fontFamily: 'Roboto',
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1565C0),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      darkTheme: ThemeData.dark().copyWith(
+        primaryColor: const Color(0xFF1565C0),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1565C0),
+          primary: const Color(0xFF1565C0),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1565C0),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+      ),
+      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      locale: Locale(localeProvider.currentLocale),
+      home: const SplashScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({Key? key}) : super(key: key);
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const OnboardingScreen(),
+        ), 
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
+      backgroundColor: const Color(0xFF1565C0),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
+          children: const [
+            Icon(Icons.store, size: 100, color: Colors.white),
+            SizedBox(height: 24),
             Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+              'Partenaire',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(height: 50),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+}
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int selectedIndex = 0;
+  bool _colorful = false;
+  late PageController _pageController;
+
+  final String _partnerId = "partner_123";
+
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: selectedIndex);
+
+    _pages = [
+      const DashboardPage(),
+      ModifierFichePage(partenaireId: _partnerId),
+      OrdersTrackingPage(),
+      const StatisticsPage(),
+      VisualsManagementPage(partnerId: _partnerId),
+      ReviewsPage(),
+      const ProfileSettingsPage(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void onButtonPressed(int index) {
+    setState(() {
+      selectedIndex = index;
+    });
+    _pageController.animateToPage(
+      selectedIndex,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutQuad,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+
+    return Scaffold(
+      body: PageView(
+        physics: const NeverScrollableScrollPhysics(),
+        controller: _pageController,
+        children: _pages,
+      ),
+      bottomNavigationBar:
+          _colorful
+              ? SlidingClippedNavBar.colorful(
+                backgroundColor:
+                    isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                onButtonPressed: onButtonPressed,
+                iconSize: 30,
+                selectedIndex: selectedIndex,
+                barItems: <BarItem>[
+                  BarItem(
+                    icon: Icons.dashboard,
+                    title: 'Tableau de bord',
+                    activeColor: Colors.blue,
+                    inactiveColor: Colors.grey,
+                  ),
+                  BarItem(
+                    icon: Icons.store,
+                    title: 'Établissement',
+                    activeColor: Colors.green,
+                    inactiveColor: Colors.grey,
+                  ),
+                  BarItem(
+                    icon: Icons.bar_chart,
+                    title: 'Statistiques',
+                    activeColor: Colors.purple,
+                    inactiveColor: Colors.grey,
+                  ),
+                  BarItem(
+                    icon: Icons.image,
+                    title: 'Visuels',
+                    activeColor: Colors.red,
+                    inactiveColor: Colors.grey,
+                  ),
+                ],
+              )
+              : SlidingClippedNavBar(
+                backgroundColor:
+                    isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                onButtonPressed: onButtonPressed,
+                iconSize: 30,
+                activeColor: const Color(0xFF1565C0),
+                selectedIndex: selectedIndex,
+                barItems: <BarItem>[
+                  BarItem(icon: Icons.dashboard, title: 'Tableau de bord'),
+                  BarItem(icon: Icons.store, title: 'Établissement'),
+                  BarItem(icon: Icons.bar_chart, title: 'Statistiques'),
+                  BarItem(icon: Icons.image, title: 'Visuels'),
+                ],
+              ),
+    );
+  }
+}
+
+class ThemeProvider with ChangeNotifier {
+  bool _isDarkMode;
+
+  ThemeProvider(this._isDarkMode);
+
+  bool get isDarkMode => _isDarkMode;
+
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
+}
+
+class LocaleProvider with ChangeNotifier {
+  String _currentLocale = 'fr';
+
+  String get currentLocale => _currentLocale;
+
+  void setLocale(String locale) {
+    _currentLocale = locale;
+    notifyListeners();
   }
 }
