@@ -7,12 +7,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:du_agbe/theme_notifier.dart'; // Importez le ThemeNotifier
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:sliding_clipped_nav_bar/sliding_clipped_nav_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // 1. Initialisation de Firebase EN PREMIER
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 2. Chargement du .env
+  try {
+    await dotenv.load(fileName: ".env");
+    print("ENV loaded: ${dotenv.env['OPENAI_API_KEY']}");
+  } catch (e) {
+    print("Error loading .env: $e");
+  }
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeNotifier(),
