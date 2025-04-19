@@ -197,7 +197,10 @@ class HomePage extends StatelessWidget {
                 quickAccess(Icons.place, "Lieux", () => Navigator.pushNamed(context, '/lieux')),
                 quickAccess(Icons.event, "Événements", () => Navigator.pushNamed(context, '/creatEvent')),
                 quickAccess(Icons.handshake, "Partenaires", () => Navigator.pushNamed(context, '/partenaires')),
+                quickAccess(Icons.category, "Ajouter Catégorie", () => Navigator.pushNamed(context, '/categorie')),
+                quickAccess(Icons.emoji_emotions, "Ajouter Mood", () => Navigator.pushNamed(context, '/mood')),
               ],
+              
             ),
           ],
         ),

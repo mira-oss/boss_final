@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 
 class CreateEventScreen extends StatefulWidget {
@@ -26,14 +27,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   late TextEditingController _descriptionController;
   late TextEditingController _capacityController;
   late DateTime _selectedDate;
+  late TimeOfDay _selectedTime;
   String _status = 'draft';
   List<String> _base64Images = [];
   bool _isUploading = false;
-
-  // Couleur bleue claire intelligente
-  final Color lightBlue = Color(0xFFE1F5FE);
-  final Color primaryBlue = Color(0xFF4FC3F7);
-  final Color accentBlue = Color(0xFFB3E5FC);
+  bool _hasCapacityLimit = true;
 
   @override
   void initState() {
@@ -42,11 +40,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _locationController = TextEditingController(text: widget.event?.location ?? '');
     _descriptionController = TextEditingController(text: widget.event?.description ?? '');
     _capacityController = TextEditingController(
-      text: widget.event?.maxCapacity.toString() ?? '100',
+      text: widget.event?.maxCapacity?.toString() ?? '100',
     );
     _selectedDate = widget.event?.date ?? DateTime.now().add(Duration(days: 7));
+    _selectedTime = TimeOfDay.fromDateTime(widget.event?.date ?? DateTime.now().add(Duration(hours: 1)));
     _status = widget.event?.status ?? 'draft';
     _base64Images = widget.event?.imageUrls ?? [];
+    _hasCapacityLimit = widget.event?.maxCapacity != null;
   }
 
   @override
@@ -68,7 +68,33 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
     if (pickedDate != null && pickedDate != _selectedDate) {
       setState(() {
-        _selectedDate = pickedDate;
+        _selectedDate = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          _selectedTime.hour,
+          _selectedTime.minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+    );
+
+    if (pickedTime != null && pickedTime != _selectedTime) {
+      setState(() {
+        _selectedTime = pickedTime;
+        _selectedDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
       });
     }
   }
@@ -95,35 +121,53 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     }
   }
 
-  Future<void> _saveEvent() async {
+   Future<void> _saveEvent() async {
     if (_formKey.currentState!.validate()) {
-      
-       final event = Event(
-      id: widget.event?.id,
-      title: _titleController.text,
-      date: _selectedDate,
-      location: _locationController.text,
-      description: _descriptionController.text,
-      maxCapacity: int.parse(_capacityController.text),
-      status: _status,
-      imageUrls: _base64Images, // Maintenant compatible avec la classe Event
-      organizerId: 'current_user_id',
-      ticketTypes: widget.event?.ticketTypes ?? [],
-    );
+      // Gestion de la capacité
+      int? capacity;
+      if (_hasCapacityLimit) {
+        capacity = int.tryParse(_capacityController.text);
+        if (capacity == null || capacity <= 0) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Veuillez entrer une capacité valide')),
+          );
+          return;
+        }
+      }
 
-      await _databaseService.saveEvent(event);
+      final event = Event(
+        id: widget.event?.id,
+        title: _titleController.text,
+        date: _selectedDate,
+        location: _locationController.text,
+        description: _descriptionController.text,
+        maxCapacity: capacity, // Peut être null si illimité
+        status: _status,
+        imageUrls: _base64Images,
+        organizerId: 'current_user_id',
+        ticketTypes: widget.event?.ticketTypes ?? [],
+      );
 
-      if (widget.event == null) {
+      try {
+        await _databaseService.saveEvent(event);
+
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TicketTypesScreen(eventId: event.id),
-          ),
+        if (widget.event == null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TicketTypesScreen(eventId: event.id),
+            ),
+          );
+        } else {
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
         );
-      } else {
-        if (!mounted) return;
-        Navigator.pop(context);
       }
     }
   }
@@ -139,15 +183,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         child: Container(
           height: 150,
           decoration: BoxDecoration(
-            color: accentBlue,
+            color: Colors.grey[200],
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_a_photo, size: 40, color: primaryBlue),
+              Icon(Icons.add_a_photo, size: 40, color: Colors.grey[600]),
               SizedBox(height: 8),
-              Text('Ajouter une photo', style: TextStyle(color: primaryBlue)),
+              Text('Ajouter une photo', style: TextStyle(color: Colors.grey[600])),
             ],
           ),
         ),
@@ -169,26 +213,42 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     width: 100,
                     margin: EdgeInsets.only(left: 8),
                     decoration: BoxDecoration(
-                      color: accentBlue,
+                      color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
-                      child: Icon(Icons.add, size: 40, color: primaryBlue),
+                      child: Icon(Icons.add, size: 40, color: Colors.grey[600]),
                     ),
                   ),
                 );
               }
               
-              return Container(
-                width: 150,
-                margin: EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  image: DecorationImage(
-                    image: MemoryImage(base64Decode(_base64Images[index])),
-                    fit: BoxFit.cover,
+              return Stack(
+                children: [
+                  Container(
+                    width: 150,
+                    margin: EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      image: DecorationImage(
+                        image: MemoryImage(base64Decode(_base64Images[index])),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    top: 5,
+                    right: 15,
+                    child: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _base64Images.removeAt(index);
+                        });
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -204,16 +264,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.event == null ? 'Créer un événement' : 'Modifier l\'événement'),
-        backgroundColor: primaryBlue,
-        iconTheme: IconThemeData(color: Colors.white),
         elevation: 0,
       ),
-      body: Container(
-        color: lightBlue,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: ListView(
-            padding: EdgeInsets.all(16.0),
+          child: Column(
             children: [
               Card(
                 elevation: 2,
@@ -229,7 +286,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey[800],
                         ),
                       ),
                       SizedBox(height: 16),
@@ -252,10 +308,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         controller: _titleController,
                         decoration: InputDecoration(
                           labelText: 'Titre de l\'événement',
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: primaryBlue),
-                          ),
-                          prefixIcon: Icon(Icons.title, color: primaryBlue),
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.title),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -265,32 +319,52 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         },
                       ),
                       SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: _selectDate,
-                        child: AbsorbPointer(
-                          child: TextFormField(
-                            decoration: InputDecoration(
-                              labelText: 'Date de l\'événement',
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: primaryBlue),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _selectDate,
+                              child: AbsorbPointer(
+                                child: TextFormField(
+                                  decoration: InputDecoration(
+                                    labelText: 'Date',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.calendar_today),
+                                  ),
+                                  controller: TextEditingController(
+                                    text: DateFormat('dd/MM/yyyy').format(_selectedDate),
+                                  ),
+                                ),
                               ),
-                              prefixIcon: Icon(Icons.calendar_today, color: primaryBlue),
-                            ),
-                            controller: TextEditingController(
-                              text: DateFormat('dd/MM/yyyy').format(_selectedDate),
                             ),
                           ),
-                        ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _selectTime,
+                              child: AbsorbPointer(
+                                child: TextFormField(
+                                  decoration: InputDecoration(
+                                    labelText: 'Heure',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.access_time),
+                                  ),
+                                  controller: TextEditingController(
+                                    text: _selectedTime.format(context),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(height: 16),
                       TextFormField(
                         controller: _locationController,
                         decoration: InputDecoration(
                           labelText: 'Lieu',
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: primaryBlue),
-                          ),
-                          prefixIcon: Icon(Icons.location_on, color: primaryBlue),
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -304,43 +378,58 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         controller: _descriptionController,
                         decoration: InputDecoration(
                           labelText: 'Description',
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: primaryBlue),
-                          ),
-                          prefixIcon: Icon(Icons.description, color: primaryBlue),
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.description),
                         ),
                         maxLines: 3,
                       ),
                       SizedBox(height: 16),
-                      TextFormField(
-                        controller: _capacityController,
-                        decoration: InputDecoration(
-                          labelText: 'Capacité maximale',
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: primaryBlue),
+                      Row(
+                        children: [
+                          Text('Capacité limitée'),
+                          Switch(
+                            value: _hasCapacityLimit,
+                            onChanged: (value) {
+                              setState(() {
+                                _hasCapacityLimit = value;
+                              });
+                            },
                           ),
-                          prefixIcon: Icon(Icons.people, color: primaryBlue),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez entrer une capacité';
-                          }
-                          if (int.tryParse(value) == null || int.parse(value) <= 0) {
-                            return 'Veuillez entrer un nombre valide';
-                          }
-                          return null;
-                        },
+                          Text('Illimitée'),
+                        ],
                       ),
+                      if (_hasCapacityLimit) ...[
+                        SizedBox(height: 16),
+                        TextFormField(
+  controller: _capacityController,
+  decoration: InputDecoration(
+    labelText: 'Capacité maximale',
+    border: OutlineInputBorder(),
+    prefixIcon: Icon(Icons.people),
+  ),
+  keyboardType: TextInputType.number,
+  validator: (value) {
+    if (_hasCapacityLimit) {
+      if (value == null || value.isEmpty) {
+        return 'Veuillez entrer une capacité';
+      }
+      final capacity = int.tryParse(value);
+      if (capacity == null || capacity <= 0) {
+        return 'Veuillez entrer un nombre valide > 0';
+      }
+    }
+    return null;
+  },
+  enabled: _hasCapacityLimit, // Désactive le champ si capacité illimitée
+),
+                      ],
                       SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: _status,
                         decoration: InputDecoration(
                           labelText: 'Statut',
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: primaryBlue),
-                          ),
-                          prefixIcon: Icon(Icons.stairs, color: primaryBlue),
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.stairs),
                         ),
                         items: [
                           DropdownMenuItem(value: 'draft', child: Text('Brouillon')),
@@ -362,7 +451,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ElevatedButton(
                 onPressed: _saveEvent,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryBlue,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

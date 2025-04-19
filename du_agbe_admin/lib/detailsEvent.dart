@@ -291,7 +291,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             const SizedBox(height: 24),
             
             // Bouton pour générer des tickets
-            if (_ticketTypes.isNotEmpty)
+           /* if (_ticketTypes.isNotEmpty)
               ElevatedButton.icon(
                 icon: const Icon(Icons.receipt_long),
                 label: const Text('Générer des tickets'),
@@ -309,7 +309,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-              ),
+              ),*/
           ],
         ),
       ),

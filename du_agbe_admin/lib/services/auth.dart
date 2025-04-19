@@ -9,7 +9,7 @@ class Auth{
   Stream<User?> get authStateChange => _firebaseAuth.authStateChanges();
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   Future<void> createUserWithEmailAndPassword(
-    String nom, String prenom,String email,String password,{String role = 'client'})async {
+    String nom, String prenom,String email,String password,{String role = 'admin'})async {
       
     try{
       UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(email: email, password: password);

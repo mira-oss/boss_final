@@ -1,5 +1,6 @@
 
 import 'package:du_agbe_admin/connexion.dart';
+import 'package:du_agbe_admin/main.dart';
 import 'package:du_agbe_admin/screens/home.dart';
 import 'package:du_agbe_admin/services/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -112,7 +113,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
                   SizedBox(height: 10),
                   TextFormField(
                     controller: email,
-                    validator: validateEmail,
+                   // validator: validateEmail,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -209,7 +210,7 @@ class _InscriptionPageState extends State<InscriptionPage> {
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const HomePage(),
+                                      builder: (context) => const MyHomePage(),
                                     ),
                                   );
                                 } on FirebaseAuthException catch (e) {

@@ -2,90 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AddCategoryForm extends StatefulWidget {
-  final Map<String, dynamic>? existingCategory;
-
-  const AddCategoryForm({super.key, this.existingCategory});
+class SimpleCategoryForm extends StatefulWidget {
+  const SimpleCategoryForm({super.key});
 
   @override
-  _AddCategoryFormState createState() => _AddCategoryFormState();
+  State<SimpleCategoryForm> createState() => _SimpleCategoryFormState();
 }
 
-class _AddCategoryFormState extends State<AddCategoryForm> {
+class _SimpleCategoryFormState extends State<SimpleCategoryForm> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _orderController = TextEditingController();
 
-  // Variables pour les champs du formulaire
   String _name = '';
   String _icon = 'utensils';
-  String _color = '#2196F3'; // Changé pour la couleur bleue principale
-  bool _isActive = true;
+  String _color = '#2196F3';
   int _order = 0;
 
-  // Liste des icônes disponibles
-  final List<Map<String, dynamic>> _availableIcons = [
-    {'name': 'utensils', 'icon': FontAwesomeIcons.utensils, 'label': 'Restaurant'},
-    {'name': 'umbrella-beach', 'icon': FontAwesomeIcons.umbrellaBeach, 'label': 'Plage'},
-    {'name': 'shopping-bag', 'icon': FontAwesomeIcons.shoppingBag, 'label': 'Shopping'},
-    {'name': 'music', 'icon': FontAwesomeIcons.music, 'label': 'Événement'},
-    {'name': 'landmark', 'icon': FontAwesomeIcons.landmark, 'label': 'Culture'},
-    {'name': 'mug-hot', 'icon': FontAwesomeIcons.mugHot, 'label': 'Café'},
+  // Liste des icônes de base
+  final List<Map<String, dynamic>> _icons = [
+    {'name': 'utensils', 'icon': FontAwesomeIcons.utensils},
+    {'name': 'shopping-bag', 'icon': FontAwesomeIcons.shoppingBag},
+    {'name': 'music', 'icon': FontAwesomeIcons.music},
   ];
 
-  // Liste des couleurs prédéfinies (adaptée à la nouvelle palette)
-  final List<String> _availableColors = [
-    '#2196F3', // Bleu primaire
-    '#64B5F6', // Bleu clair
-    '#0D47A1', // Bleu foncé
-    '#00A859', // Vert
-    '#FF6B00', // Orange
-    '#6E3BFF', // Violet
+  // Couleurs de base
+  final List<String> _colors = [
+    '#2196F3', // Bleu
+    '#4CAF50', // Vert
+    '#FF9800', // Orange
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.existingCategory != null) {
-      _name = widget.existingCategory!['name'];
-      _icon = widget.existingCategory!['icon'];
-      _color = widget.existingCategory!['color'];
-      _isActive = widget.existingCategory!['isActive'];
-      _order = widget.existingCategory!['order'];
-    }
-  }
-
-  Future<void> _submitForm() async {
+  Future<void> _saveCategory() async {
     if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+      // Récupérer les valeurs des champs
+      _name = _nameController.text;
+      _order = int.tryParse(_orderController.text) ?? 0;
 
       try {
+        // Créer l'objet à enregistrer
         final categoryData = {
           'name': _name,
           'icon': _icon,
           'color': _color,
-          'isActive': _isActive,
           'order': _order,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'isActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
         };
 
-        if (widget.existingCategory == null) {
-          categoryData['createdAt'] = FieldValue.serverTimestamp();
-          await _firestore.collection('categories').add(categoryData);
-        } else {
-          await _firestore
-              .collection('categories')
-              .doc(widget.existingCategory!['id'])
-              .update(categoryData);
-        }
+        // Enregistrer dans Firestore
+        await _firestore.collection('categories').add(categoryData);
 
+        // Afficher un message de succès
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Catégorie ${widget.existingCategory == null ? 'ajoutée' : 'modifiée'} avec succès!'),
-            backgroundColor: HexColor('#2196F3'),
+          const SnackBar(
+            content: Text('Catégorie ajoutée avec succès!'),
+            backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+
+        // Réinitialiser le formulaire
+        _nameController.clear();
+        _orderController.clear();
+        setState(() {
+          _icon = 'utensils';
+          _color = '#2196F3';
+        });
       } catch (e) {
+        // Afficher un message d'erreur
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: ${e.toString()}'),
@@ -97,137 +84,130 @@ class _AddCategoryFormState extends State<AddCategoryForm> {
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _orderController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingCategory == null ? 'Nouvelle Catégorie' : 'Modifier Catégorie'),
-        backgroundColor: HexColor('#2196F3'),
+        title: const Text('Ajouter une Catégorie'),
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Champ Nom
+              // Champ pour le nom
               TextFormField(
-                decoration: InputDecoration(
+                controller: _nameController,
+                decoration: const InputDecoration(
                   labelText: 'Nom de la catégorie',
-                  hintText: 'Ex: Restaurants',
-                  enabledBorder: OutlineInputBorder( // Bordure normale
-                    borderSide: BorderSide(color: HexColor('#2196F3')),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  focusedBorder: OutlineInputBorder( // Bordure quand le champ est sélectionné
-                    borderSide: BorderSide(color: HexColor('#0D47A1'), width: 2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  labelStyle: TextStyle(color: HexColor('#2196F3')),
+                  border: OutlineInputBorder(),
                 ),
-              ),
-              SizedBox(height: 20),
-
-              // Sélection d'icône
-              Text('Icône', 
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: HexColor('#2196F3'),
-                  )),
-              SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                children: _availableIcons.map((iconData) {
-                  return ChoiceChip(
-                    label: FaIcon(iconData['icon'], color: Colors.white),
-                    selected: _icon == iconData['name'],
-                    onSelected: (selected) {
-                      setState(() {
-                        _icon = iconData['name'];
-                      });
-                    },
-                    backgroundColor: Colors.grey[300],
-                    selectedColor: HexColor('#2196F3'),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 20),
-
-              // Sélection de couleur
-              Text('Couleur', 
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: HexColor('#2196F3'),
-                  )),
-              SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                children: _availableColors.map((colorHex) {
-                  return ChoiceChip(
-                    label: SizedBox(width: 24, height: 24),
-                    selected: _color == colorHex,
-                    onSelected: (selected) {
-                      setState(() {
-                        _color = colorHex;
-                      });
-                    },
-                    backgroundColor: HexColor(colorHex),
-                    selectedColor: HexColor(colorHex),
-                  );
-                }).toList(),
-              ),
-              SizedBox(height: 20),
-
-              // Ordre
-              TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'Ordre d\'affichage',
-                  hintText: 'Ex: 1, 2, 3...',
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: HexColor('#2196F3')),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: HexColor('#0D47A1'), width: 2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  errorBorder: OutlineInputBorder( // Bordure en cas d'erreur
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-
-              // Active/Inactive
-              SwitchListTile(
-                title: Text('Catégorie active',
-                    style: TextStyle(color: HexColor('#2196F3'))),
-                value: _isActive,
-                activeColor: HexColor('#2196F3'),
-                onChanged: (value) {
-                  setState(() {
-                    _isActive = value;
-                  });
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer un nom';
+                  }
+                  return null;
                 },
               ),
-              SizedBox(height: 30),
+              const SizedBox(height: 16),
 
-              // Bouton de soumission
+              // Sélection d'icône
+              const Text('Icône', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: _icons.map((iconData) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: IconButton(
+                      icon: FaIcon(
+                        iconData['icon'],
+                        color: _icon == iconData['name'] ? Colors.blue : Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _icon = iconData['name'];
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Sélection de couleur
+              const Text('Couleur', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: _colors.map((colorHex) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _color = colorHex;
+                        });
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _parseColor(colorHex),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _color == colorHex ? Colors.black : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Champ pour l'ordre
+              TextFormField(
+                controller: _orderController,
+                decoration: const InputDecoration(
+                  labelText: 'Ordre d\'affichage',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Veuillez entrer un ordre';
+                  }
+                  if (int.tryParse(value) == null) {
+                    return 'Veuillez entrer un nombre valide';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Bouton d'ajout
               Center(
                 child: ElevatedButton(
-                  onPressed: _submitForm,
+                  onPressed: _saveCategory,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: HexColor('#2196F3'),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
+                    backgroundColor: Colors.blue,
+                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                    child: Text(
-                      widget.existingCategory == null ? 'AJOUTER' : 'MODIFIER',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                  child: const Text(
+                    'AJOUTER',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -238,15 +218,13 @@ class _AddCategoryFormState extends State<AddCategoryForm> {
       ),
     );
   }
-}
 
-// Helper pour les couleurs hexadécimales
-class HexColor extends Color {
-  HexColor(final String hexColor) : super(_parseHexColor(hexColor));
-
-  static int _parseHexColor(String hexColor) {
+  // Fonction helper pour convertir les couleurs hexadécimales
+  Color _parseColor(String hexColor) {
     hexColor = hexColor.replaceFirst('#', '');
-    if (hexColor.length == 6) hexColor = 'FF$hexColor';
-    return int.parse(hexColor, radix: 16);
+    if (hexColor.length == 6) {
+      hexColor = 'FF$hexColor';
+    }
+    return Color(int.parse(hexColor, radix: 16));
   }
 }

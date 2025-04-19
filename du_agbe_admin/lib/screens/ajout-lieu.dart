@@ -1,130 +1,198 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
-class AjoutLieu extends StatefulWidget {
-  const AjoutLieu({super.key});
-
+class AjoutPartenaire extends StatefulWidget {
+  const AjoutPartenaire({super.key});
   @override
-  State<AjoutLieu> createState() => _AjoutLieuState();
+  State<AjoutPartenaire> createState() => _AjoutPartenaireState();
 }
 
-class _AjoutLieuState extends State<AjoutLieu> {
+class _AjoutPartenaireState extends State<AjoutPartenaire> {
   final _formKey = GlobalKey<FormState>();
   final _nomController = TextEditingController();
-  String _categorie = 'Centre de bien-être';
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  String _categorie = '';
   List<String> _selectedMoods = [];
   bool _isSubmitting = false;
+  bool _isLoading = true;
+  List<String> _categories = [];
+  List<String> _allMoods = [];
+  
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription<User?>? _authSubscription;
 
-  final List<String> _categories = [
-    'Centre de bien-être',
-    'Spa',
-    'Yoga studio',
-    'Maison de thé',
-    'Parc tranquille',
-    'Bibliothèque calme',
-    'Cabin en nature',
-    'Espace de méditation',
-    'Restaurant',
-    'Bar',
-    'Cafe',
-    'Hotel',
-    'Plage',
-    'Espace coworking',
-    'Supermarche',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadCategoriesAndMoods();
+    _setupAuthListener();
+  }
 
-  final List<String> _allMoods = [
-    'Calme',
-    'Serein',
-    'Zen',
-    'Apaisant',
-    'Respirant',
-    'Harmonieux',
-    'Naturel',
-    'Minimaliste',
-    'Chaleureux',
-    'Inspirant',
-    'Enveloppant',
-    'Lumineux'
-  ];
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _nomController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _setupAuthListener() {
+    _authSubscription = _auth.authStateChanges().listen((User? user) async {
+      if (user != null) {
+        final metadata = await user.metadata;
+        // Vérifie si l'utilisateur vient de se connecter après réinitialisation
+        if (metadata.creationTime?.isBefore(metadata.lastSignInTime ?? DateTime.now()) ?? false) {
+          await _firestore.collection('partenaires').doc(user.uid).update({
+            'a_changer_mdp': true,
+            'dernier_mdp_change': FieldValue.serverTimestamp()
+          });
+        }
+      }
+    });
+  }
+
+  Future<void> _loadCategoriesAndMoods() async {
+    try {
+      final categoriesSnapshot = await _firestore
+          .collection('categories')
+          .where('isActive', isEqualTo: true)
+          .get();
+      
+      final moodsSnapshot = await _firestore
+          .collection('moods')
+          .orderBy('name')
+          .get();
+      
+      setState(() {
+        _categories = categoriesSnapshot.docs
+            .map((doc) => doc['name'] as String)
+            .toList();
+        
+        _allMoods = moodsSnapshot.docs
+            .map((doc) => doc['name'] as String)
+            .toList();
+        
+        if (_categories.isNotEmpty) {
+          _categorie = _categories.first;
+        }
+        
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnack('Erreur de chargement: ${e.toString()}');
+    }
+  }
 
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message)),
     );
   }
 
   String _generateTempPassword() {
-    final random = Random();
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    return String.fromCharCodes(
-      Iterable.generate(
-        8,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
-    );
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#&*';
+    final random = Random.secure();
+    return String.fromCharCodes(Iterable.generate(12, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
   }
 
-  Future<void> _ajouterLieu() async {
+  Future<void> _ajouterPartenaire() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
+    if (_categories.isEmpty || _allMoods.isEmpty) {
+      _showSnack('Veuillez charger les catégories et ambiances');
+      return;
+    }
+    
+    setState(() => _isSubmitting = true);
+    
     try {
-      final tempPassword = _generateTempPassword();
+      final email = _emailController.text.trim();
       final nomLieu = _nomController.text;
+      final phone = _phoneController.text.trim();
+
+      // Vérifier si l'email existe
+      final methods = await _auth.fetchSignInMethodsForEmail(email);
+      if (methods.isNotEmpty) {
+        _showSnack('Cet email est déjà utilisé');
+        return;
+      }
+
+      // Créer le compte
+      final tempPassword = _generateTempPassword();
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: tempPassword,
+      );
       
-      // Ajout dans la collection 'lieux'
-      final lieuRef = await FirebaseFirestore.instance.collection('lieux').add({
+      final userId = credential.user!.uid;
+
+      // Enregistrer dans Firestore
+      await _firestore.collection('partenaires').doc(userId).set({
         'nom': nomLieu,
+        'email': email,
+        'phone': phone,
         'categorie': _categorie,
         'statut': 'en_attente',
         'date_creation': FieldValue.serverTimestamp(),
-        'mot_de_passe_temp': tempPassword,
-        'a_changer_mdp': true,
-        'moods': _selectedMoods, // Stocke aussi les moods directement dans le lieu
+        'a_changer_mdp': false,
+        'moods': _selectedMoods,
+        'uid': userId,
+        'dernier_mdp_change': null,
       });
 
-      // Ajout dans la collection 'relax_moods' pour faciliter les recherches
-      if (_selectedMoods.isNotEmpty) {
-        for (final mood in _selectedMoods) {
-          await FirebaseFirestore.instance.collection('relax_moods').add({
-            'lieu_id': lieuRef.id,
-            'nom_lieu': nomLieu,
-            'mood': mood,
-            'categorie': _categorie,
-            'date_ajout': FieldValue.serverTimestamp(),
-          });
-        }
-      }
+      // Envoyer le lien de réinitialisation
+      await _auth.sendPasswordResetEmail(email: email);
 
-      _showSnack('Demande envoyée avec succès! Mot de passe temporaire: $tempPassword');
-      _nomController.clear();
-      setState(() {
-        _selectedMoods = [];
-      });
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Succès'),
+          content: const Text('Le partenaire a été créé et un lien de réinitialisation a été envoyé.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      _resetForm();
     } catch (e) {
       _showSnack('Erreur: ${e.toString()}');
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      setState(() => _isSubmitting = false);
     }
+  }
+
+  void _resetForm() {
+    _nomController.clear();
+    _emailController.clear();
+    _phoneController.clear();
+    setState(() {
+      _selectedMoods = [];
+      if (_categories.isNotEmpty) _categorie = _categories.first;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ajouter un lieu de détente'),
+        title: const Text('Ajouter un partenaire'),
         centerTitle: true,
-        backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -135,131 +203,69 @@ class _AjoutLieuState extends State<AjoutLieu> {
             children: [
               TextFormField(
                 controller: _nomController,
-                decoration: InputDecoration(
-                  labelText: 'Nom du lieu',
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue),
-                  ),
-                  prefixIcon: Icon(Icons.place, color: Colors.blue),
+                decoration: const InputDecoration(
+                  labelText: 'Nom du partenaire',
+                  prefixIcon: Icon(Icons.business),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer un nom';
-                  }
-                  return null;
-                },
+                validator: (value) => value?.isEmpty ?? true ? 'Champ obligatoire' : null,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) => value?.contains('@') ?? false ? null : 'Email invalide',
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Téléphone',
+                  prefixIcon: Icon(Icons.phone),
+                ),
+                keyboardType: TextInputType.phone,
+               // validator: (value) => value?.length ??0 >8 ? null : 'Numéro trop court',
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 value: _categorie,
-                decoration: InputDecoration(
+                items: _categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (value) => setState(() => _categorie = value ?? ''),
+                decoration: const InputDecoration(
                   labelText: 'Catégorie',
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue),
-                  ),
-                  prefixIcon: Icon(Icons.category, color: Colors.blue),
+                  prefixIcon: Icon(Icons.category),
                 ),
-                items: _categories.map((categorie) => DropdownMenuItem<String>(
-                  value: categorie,
-                  child: Text(categorie),
-                )).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _categorie = value;
-                    });
-                  }
-                },
               ),
               const SizedBox(height: 20),
               InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Ambiances relaxantes',
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue),
-                  ),
-                  prefixIcon: Icon(Icons.mood, color: Colors.blue),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Sélectionnez les ambiances qui correspondent à ce lieu',
-                      style: TextStyle(color: Colors.blue, fontSize: 12),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8.0,
-                      runSpacing: 8.0,
-                      children: _allMoods.map((mood) {
-                        return FilterChip(
-                          label: Text(mood),
-                          selected: _selectedMoods.contains(mood),
-                          selectedColor: Colors.blue,
-                          checkmarkColor: Colors.blue,
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedMoods.add(mood);
-                              } else {
-                                _selectedMoods.remove(mood);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    if (_selectedMoods.isNotEmpty) ...[
-                      const SizedBox(height: 15),
-                      Text(
-                        'Ambiances sélectionnées:',
-                        style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 5),
-                      Wrap(
-                        spacing: 5,
-                        runSpacing: 5,
-                        children: _selectedMoods.map((mood) => Chip(
-                          label: Text(mood),
-                          backgroundColor: Colors.teal[50],
-                          deleteIconColor: Colors.teal[800],
-                          onDeleted: () {
-                            setState(() {
-                              _selectedMoods.remove(mood);
-                            });
-                          },
-                        )).toList(),
-                      ),
-                    ],
-                  ],
+                decoration: const InputDecoration(
+                  labelText: 'Ambiances',
+                  prefixIcon: Icon(Icons.mood),),
+                child: Wrap(
+                  spacing: 8,
+                  children: _allMoods.map((mood) => FilterChip(
+                    label: Text(mood),
+                    selected: _selectedMoods.contains(mood),
+                    onSelected: (v) => setState(() => v 
+                      ? _selectedMoods.add(mood) 
+                      : _selectedMoods.remove(mood)),
+                  )).toList(),
                 ),
               ),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _ajouterLieu,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                child: _isSubmitting
-                    ? const CircularProgressIndicator()
-                    : const Text('Envoyer la demande'),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Ce lieu sera évalué pour s\'assurer qu\'il offre une véritable expérience de détente.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.teal[800], fontStyle: FontStyle.italic),
+                onPressed: _isSubmitting ? null : _ajouterPartenaire,
+                child: _isSubmitting 
+                  ? const CircularProgressIndicator() 
+                  : const Text('Créer le partenaire'),
               ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _nomController.dispose();
-    super.dispose();
   }
 }

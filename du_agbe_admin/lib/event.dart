@@ -7,9 +7,9 @@ class Event {
   DateTime date;
   String location;
   String description;
-  int maxCapacity;
-  String status; // 'draft', 'published', 'completed', 'cancelled'
-  List<String> imageUrls; // Changé de String imageUrl à List<String> imageUrls
+  int? maxCapacity; // Nullable
+  String status;
+  List<String> imageUrls;
   String organizerId;
   List<TicketType> ticketTypes;
 
@@ -19,9 +19,9 @@ class Event {
     required this.date,
     required this.location,
     required this.description,
-    required this.maxCapacity,
+    this.maxCapacity, // Nullable
     required this.status,
-    this.imageUrls = const [], // Initialisé comme liste vide par défaut
+    this.imageUrls = const [],
     required this.organizerId,
     List<TicketType>? ticketTypes,
   }) : 
@@ -37,9 +37,8 @@ class Event {
       'description': description,
       'maxCapacity': maxCapacity,
       'status': status,
-      'imageUrls': imageUrls, // Changé de imageUrl à imageUrls
+      'imageUrls': imageUrls,
       'organizerId': organizerId,
-      // Tickets sont sauvegardés séparément
     };
   }
 
@@ -52,14 +51,15 @@ class Event {
       description: map['description'],
       maxCapacity: map['maxCapacity'],
       status: map['status'],
-      imageUrls: List<String>.from(map['imageUrls'] ?? []), // Conversion en liste
+      imageUrls: List<String>.from(map['imageUrls'] ?? []),
       organizerId: map['organizerId'],
-      ticketTypes: null, // Vous devrez peut-être charger ces séparément
     );
   }
 
-  int get remainingCapacity {
-    int sold = ticketTypes.fold(0, (sum, type) => sum + type.soldCount);
-    return maxCapacity - sold;
+  int? get remainingCapacity {
+    if (maxCapacity == null) return null; // Retourne null si capacité illimitée
+    
+    final int sold = ticketTypes.fold(0, (sum, type) => sum + type.soldCount);
+    return maxCapacity! - sold; // Utilisation de ! car nous avons vérifié null
   }
 }
