@@ -1,3 +1,7 @@
+import 'package:du_agbe_pro/Auth/clients.dart';
+import 'package:du_agbe_pro/Auth/menu.dart';
+import 'package:du_agbe_pro/chiffre.dart';
+import 'package:du_agbe_pro/commandes.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -842,24 +846,26 @@ class _DashboardPageState extends State<DashboardPage>
           Row(
             children: [
               Expanded(
-                child: _buildStatCard(
-                  icon: Icons.payments_outlined,
-                  value: '125,000',
-                  label: 'Chiffre d\'affaires',
-                  color: const Color(0xFF4CAF50),
-                  change: '+12%',
+                  child: _buildStatCard(
+                    icon: Icons.payments_outlined,
+                    value: '125,000',
+                    label: 'Chiffre d\'affaires',
+                    color: const Color(0xFF4CAF50),
+                    change: '+12%',
+                  ),
                 ),
-              ),
+              
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.shopping_cart_outlined,
-                  value: '28',
-                  label: 'Commandes',
-                  color: const Color(0xFF2196F3),
-                  change: '+5%',
+               Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.shopping_cart_outlined,
+                    value: '28',
+                    label: 'Commandes',
+                    color: const Color(0xFF2196F3),
+                    change: '+5%',
+                  ),
                 ),
-              ),
+              
             ],
           ),
           const SizedBox(height: 12),
@@ -973,28 +979,40 @@ class _DashboardPageState extends State<DashboardPage>
                 'Menu',
                 Icons.restaurant_menu,
                 Colors.orange,
-                () => _navigateTo(context, 'MenuPage'),
+                () => setState(() {
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>RestaurantApp()));
+                  })
               ),
-              _buildQuickAccessItem(
-                context,
-                'Commandes',
-                Icons.receipt_long,
-                Colors.blue,
-                () => _navigateTo(context, 'OrdersPage'),
-              ),
+             _buildQuickAccessItem(
+                  context,
+                  'Commandes',
+                  Icons.receipt_long,
+                  Colors.blue,
+                  () => 
+                  setState(() {
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>CommandesPage()));
+                  })
+            
+                ),
+              
               _buildQuickAccessItem(
                 context,
                 'Clients',
                 Icons.people,
                 Colors.purple,
-                () => _navigateTo(context, 'CustomersPage'),
+                () => setState(() {
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Chiffre()));
+                  })
               ),
               _buildQuickAccessItem(
                 context,
                 'Analyses',
                 Icons.insert_chart,
                 Colors.green,
-                () => _navigateTo(context, 'AnalyticsPage'),
+                () => 
+                  setState(() {
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Chiffre()));
+                  })
               ),
             ],
           ),

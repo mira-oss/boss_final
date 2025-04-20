@@ -1,3 +1,4 @@
+import 'package:du_agbe_pro/dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -61,7 +62,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _markOnboardingComplete();
     // Assure une transition de remplacement pour éviter de revenir à l'onboarding
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginPage()),
+      MaterialPageRoute(builder: (context) => const DashboardPage()),
     );
   }
 
