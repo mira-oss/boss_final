@@ -86,6 +86,7 @@ class _ProfilState extends State<Profil> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profil'),
+        backgroundColor: Colors.blue,
         actions: [
           IconButton(
             icon: Icon(themeNotifier.themeMode == ThemeMode.dark 

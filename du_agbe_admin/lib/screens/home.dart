@@ -10,12 +10,12 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Découvrir le Bénin"),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.blue,
         actions: [
           IconButton(
             icon: const Icon(Icons.admin_panel_settings),
             onPressed: () {
-              Navigator.pushNamed(context, '/admin');
+              Navigator.pushNamed(context, '/Profil');
             },
           ),
         ],

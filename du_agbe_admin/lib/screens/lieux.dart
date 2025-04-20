@@ -12,20 +12,65 @@ class _LieuxPageState extends State<Lieux> {
   String _search = '';
   String _typeFiltre = 'Tous';
   bool _trierParPopularite = true;
+  final TextEditingController _searchController = TextEditingController();
 
   final List<String> types = ['Tous', 'Restaurant', 'Bar', 'Café', 'Hôtel', 'Plage'];
+
+  // Fonction pour supprimer un lieu
+  Future<void> _supprimerLieu(String docId) async {
+    try {
+      await FirebaseFirestore.instance.collection('lieux').doc(docId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lieu supprimé avec succès')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la suppression: $e')),
+      );
+    }
+  }
+
+  // Fonction pour confirmer la suppression
+  void _confirmerSuppression(String docId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la suppression'),
+        content: const Text('Voulez-vous vraiment supprimer ce lieu ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _supprimerLieu(docId);
+            },
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Explorer les Lieux"),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.blue,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_location_alt),
             onPressed: () {
-              Navigator.pushNamed(context, '/ajout-lieu'); // ⚠️ à créer
+              Navigator.pushNamed(context, '/ajout-lieu');
             },
           ),
         ],
@@ -34,13 +79,28 @@ class _LieuxPageState extends State<Lieux> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
-            // 🔍 Recherche
+            // 🔍 Barre de recherche dynamique
             TextField(
-              onChanged: (value) => setState(() => _search = value.toLowerCase()),
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _search = value.toLowerCase();
+                });
+              },
               decoration: InputDecoration(
                 hintText: "Rechercher un lieu...",
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _search = '';
+                          });
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
@@ -52,7 +112,7 @@ class _LieuxPageState extends State<Lieux> {
 
             const SizedBox(height: 12),
 
-            // 🧭 Filtres
+            // 🧭 Filtres avec sélection en bleu
             SizedBox(
               height: 40,
               child: ListView(
@@ -61,13 +121,16 @@ class _LieuxPageState extends State<Lieux> {
                   final selected = _typeFiltre == type;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
+                    child: FilterChip(
                       label: Text(type),
                       selected: selected,
                       onSelected: (_) => setState(() => _typeFiltre = type),
-                      selectedColor: Colors.deepOrange,
+                      selectedColor: Colors.blue,
+                      checkmarkColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: selected ? Colors.white : Colors.black,
+                      ),
                       backgroundColor: Colors.grey.shade200,
-                      labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
                     ),
                   );
                 }).toList(),
@@ -120,7 +183,10 @@ class _LieuxPageState extends State<Lieux> {
                   return ListView.builder(
                     itemCount: lieux.length,
                     itemBuilder: (context, index) {
-                      final data = lieux[index].data() as Map<String, dynamic>;
+                      final doc = lieux[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final docId = doc.id;
+
                       return Card(
                         elevation: 3,
                         margin: const EdgeInsets.only(bottom: 12),
@@ -128,16 +194,46 @@ class _LieuxPageState extends State<Lieux> {
                         child: ListTile(
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.network(data['image'], width: 60, height: 60, fit: BoxFit.cover),
+                            child: Image.network(
+                              data['image'], 
+                              width: 60, 
+                              height: 60, 
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => 
+                                const Icon(Icons.place, size: 40),
+                            ),
                           ),
                           title: Text(data['nom'], style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text("Type : ${data['type']}"),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                          trailing: PopupMenuButton(
+                            icon: const Icon(Icons.more_vert),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'modifier',
+                                child: Text('Modifier'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'supprimer',
+                                child: Text('Supprimer', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                            onSelected: (value) {
+                              if (value == 'modifier') {
+                                Navigator.pushNamed(
+                                  context, 
+                                  '/ajout-lieu', 
+                                  arguments: {'id': docId, ...data},
+                                );
+                              } else if (value == 'supprimer') {
+                                _confirmerSuppression(docId);
+                              }
+                            },
+                          ),
                           onTap: () {
                             Navigator.pushNamed(
                               context,
                               '/details-lieu',
-                              arguments: data, // ou doc.id pour fetch ensuite
+                              arguments: {'id': docId, ...data},
                             );
                           },
                         ),

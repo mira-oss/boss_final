@@ -1,6 +1,5 @@
 import 'package:du_agbe_admin/inscription.dart';
 import 'package:du_agbe_admin/main.dart';
-import 'package:du_agbe_admin/screens/home.dart';
 import 'package:du_agbe_admin/services/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -201,7 +200,7 @@ class _ConnexionpageState extends State<ConnexionPage> {
             ),
             SizedBox(height: hauteurEcran * 0.015),
             Text(
-              'Ou se conneecter avec',
+              'Ou se connecter avec',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
             ),
             SizedBox(height: hauteurEcran * 0.01),

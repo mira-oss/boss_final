@@ -265,6 +265,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       appBar: AppBar(
         title: Text(widget.event == null ? 'Créer un événement' : 'Modifier l\'événement'),
         elevation: 0,
+        backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
@@ -449,18 +450,36 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               ),
               SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _saveEvent,
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  widget.event == null ? 'Créer et continuer' : 'Enregistrer les modifications',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
+  onPressed: _saveEvent,
+  style: ElevatedButton.styleFrom(
+    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+    backgroundColor: Colors.blue, // Couleur plus profonde
+    foregroundColor: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    elevation: 4,
+    shadowColor: Colors.blue.shade200,
+  ),
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(widget.event == null ? Icons.create : Icons.save, size: 20),
+      SizedBox(width: 8),
+      Text(
+        widget.event == null ? 'Créer et continuer' : 'Enregistrer les modifications',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      if (widget.event == null) ...[
+        SizedBox(width: 8),
+        Icon(Icons.arrow_forward, size: 20),
+      ],
+    ],
+  ),
+)
             ],
           ),
         ),

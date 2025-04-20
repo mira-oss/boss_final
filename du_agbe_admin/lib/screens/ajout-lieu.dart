@@ -3,8 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 class AjoutPartenaire extends StatefulWidget {
   const AjoutPartenaire({super.key});
@@ -47,8 +45,7 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
   void _setupAuthListener() {
     _authSubscription = _auth.authStateChanges().listen((User? user) async {
       if (user != null) {
-        final metadata = await user.metadata;
-        // Vérifie si l'utilisateur vient de se connecter après réinitialisation
+        final metadata = user.metadata;
         if (metadata.creationTime?.isBefore(metadata.lastSignInTime ?? DateTime.now()) ?? false) {
           await _firestore.collection('partenaires').doc(user.uid).update({
             'a_changer_mdp': true,
@@ -118,14 +115,12 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
       final nomLieu = _nomController.text;
       final phone = _phoneController.text.trim();
 
-      // Vérifier si l'email existe
       final methods = await _auth.fetchSignInMethodsForEmail(email);
       if (methods.isNotEmpty) {
         _showSnack('Cet email est déjà utilisé');
         return;
       }
 
-      // Créer le compte
       final tempPassword = _generateTempPassword();
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -134,7 +129,6 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
       
       final userId = credential.user!.uid;
 
-      // Enregistrer dans Firestore
       await _firestore.collection('partenaires').doc(userId).set({
         'nom': nomLieu,
         'email': email,
@@ -148,7 +142,6 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
         'dernier_mdp_change': null,
       });
 
-      // Envoyer le lien de réinitialisation
       await _auth.sendPasswordResetEmail(email: email);
 
       showDialog(
@@ -193,6 +186,7 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
       appBar: AppBar(
         title: const Text('Ajouter un partenaire'),
         centerTitle: true,
+        backgroundColor: Colors.blue,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -203,18 +197,18 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
             children: [
               TextFormField(
                 controller: _nomController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Nom du partenaire',
-                  prefixIcon: Icon(Icons.business),
+                  prefixIcon: Icon(Icons.business, color: Colors.blue),
                 ),
                 validator: (value) => value?.isEmpty ?? true ? 'Champ obligatoire' : null,
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: Icon(Icons.email, color: Colors.blue),
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) => value?.contains('@') ?? false ? null : 'Email invalide',
@@ -222,33 +216,40 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Téléphone',
-                  prefixIcon: Icon(Icons.phone),
+                  prefixIcon: Icon(Icons.phone, color: Colors.blue),
                 ),
                 keyboardType: TextInputType.phone,
-               // validator: (value) => value?.length ??0 >8 ? null : 'Numéro trop court',
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 value: _categorie,
                 items: _categories.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (value) => setState(() => _categorie = value ?? ''),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Catégorie',
-                  prefixIcon: Icon(Icons.category),
+                  prefixIcon: Icon(Icons.category, color: Colors.blue),
                 ),
               ),
               const SizedBox(height: 20),
               InputDecorator(
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Ambiances',
-                  prefixIcon: Icon(Icons.mood),),
+                  prefixIcon: Icon(Icons.mood, color: Colors.blue),
+                ),
                 child: Wrap(
                   spacing: 8,
                   children: _allMoods.map((mood) => FilterChip(
                     label: Text(mood),
                     selected: _selectedMoods.contains(mood),
+                    selectedColor: Colors.blue[100],
+                    checkmarkColor: Colors.blue,
+                    labelStyle: TextStyle(
+                      color: _selectedMoods.contains(mood) 
+                        ? Colors.blue[800]
+                        : Colors.black,
+                    ),
                     onSelected: (v) => setState(() => v 
                       ? _selectedMoods.add(mood) 
                       : _selectedMoods.remove(mood)),
@@ -258,9 +259,31 @@ class _AjoutPartenaireState extends State<AjoutPartenaire> {
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _isSubmitting ? null : _ajouterPartenaire,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 5,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
                 child: _isSubmitting 
-                  ? const CircularProgressIndicator() 
-                  : const Text('Créer le partenaire'),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'CRÉER LE PARTENAIRE',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
               ),
             ],
           ),

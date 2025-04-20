@@ -2,7 +2,6 @@
 import 'package:du_agbe_admin/creatEvent.dart';
 import 'package:du_agbe_admin/event.dart';
 import 'package:du_agbe_admin/firestorService.dart';
-import 'package:du_agbe_admin/generateTicket.dart';
 import 'package:du_agbe_admin/ticketType.dart';
 import 'package:du_agbe_admin/typebillets.dart';
 import 'package:flutter/material.dart';
