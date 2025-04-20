@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-// Ces classes restent inchangées
+
 class ThemeProvider with ChangeNotifier {
   bool _isDarkMode;
 
@@ -647,7 +647,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
 
                         // Informations du restaurant
                         Card(
-                          elevation: 4,
+                          elevation: 6,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -731,7 +731,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                     child: Column(
                       children: [
                         Card(
-                          elevation: 4,
+                          elevation: 6,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
