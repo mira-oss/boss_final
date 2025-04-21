@@ -1,4 +1,5 @@
 import 'package:du_agbe_pro/dashboard.dart';
+import 'package:du_agbe_pro/sign.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -62,7 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _markOnboardingComplete();
     // Assure une transition de remplacement pour éviter de revenir à l'onboarding
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const DashboardPage()),
+      MaterialPageRoute(builder: (context) => const InscriptionPage()),
     );
   }
 
@@ -90,7 +91,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.only(top: 16.0, right: 16.0),
                 child: TextButton(
                   onPressed:
-                      _goToLogin, // Appelle _goToLogin lorsque "Passer" est cliqué
+                      _goToLogin, 
                   child: const Text(
                     'Passer',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),

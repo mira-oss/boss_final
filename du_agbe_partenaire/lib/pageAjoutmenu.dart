@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddMenuPage extends StatefulWidget {
   const AddMenuPage({Key? key}) : super(key: key);
@@ -19,8 +20,8 @@ class _AddMenuPageState extends State<AddMenuPage> {
   File? _image;
   final _picker = ImagePicker();
   bool _isLoading = false;
+  String? _restaurantId; // ID du restaurant récupéré depuis Firebase
   
-  // Liste des catégories disponibles
   final List<String> _categories = [
     'Entrées',
     'Plats principaux',
@@ -33,13 +34,55 @@ class _AddMenuPageState extends State<AddMenuPage> {
     'Spécialités'
   ];
   
-  // Valeur sélectionnée dans le dropdown
   String? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _getRestaurantId();
+  }
+
+  // Récupérer l'ID du restaurant associé à l'utilisateur connecté
+  Future<void> _getRestaurantId() async {
+    try {
+      // Récupérer l'utilisateur connecté
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Chercher le document restaurant associé à cet utilisateur
+        final restaurantQuery = await FirebaseFirestore.instance
+            .collection('restaurants')
+            .where('userId', isEqualTo: user.uid)
+            .limit(1)
+            .get();
+        
+        if (restaurantQuery.docs.isNotEmpty) {
+          setState(() {
+            _restaurantId = restaurantQuery.docs.first.id;
+          });
+        } else {
+          // Si aucun restaurant n'est trouvé, créer un document restaurant
+          final newRestaurant = await FirebaseFirestore.instance
+              .collection('restaurants')
+              .add({
+                'userId': user.uid,
+                'email': user.email,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+          
+          setState(() {
+            _restaurantId = newRestaurant.id;
+          });
+        }
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération de l\'ID du restaurant: $e');
+    }
+  }
 
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70, // Réduire la qualité pour optimiser la taille
+      imageQuality: 70,
     );
     if (pickedFile != null) {
       setState(() {
@@ -48,7 +91,6 @@ class _AddMenuPageState extends State<AddMenuPage> {
     }
   }
 
-  // Convertir l'image en base64
   Future<String> _imageToBase64(File imageFile) async {
     List<int> imageBytes = await imageFile.readAsBytes();
     String base64Image = base64Encode(imageBytes);
@@ -67,15 +109,23 @@ class _AddMenuPageState extends State<AddMenuPage> {
         return;
       }
 
+      if (_restaurantId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur: Impossible de récupérer l\'ID du restaurant'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
 
       try {
-        // Convertir l'image en base64
         String imageBase64 = await _imageToBase64(_image!);
         
-        // Appeler la fonction d'ajout à Firebase
         await _addMenuToFirebase(
           nom: _titleController.text,
           description: _descriptionController.text,
@@ -84,7 +134,6 @@ class _AddMenuPageState extends State<AddMenuPage> {
           imageBase64: imageBase64,
         );
         
-        // Réinitialiser le formulaire
         _titleController.clear();
         _descriptionController.clear();
         _priceController.clear();
@@ -123,22 +172,25 @@ class _AddMenuPageState extends State<AddMenuPage> {
     required String imageBase64,
   }) async {
     try {
-      // Valider les données d'entrée
       if (nom.isEmpty || description.isEmpty || prix <= 0 || categorie.isEmpty) {
         throw 'Tous les champs sont obligatoires et le prix doit être positif';
       }
+      final user = FirebaseAuth.instance.currentUser;
+
 
       final CollectionReference menus = 
           FirebaseFirestore.instance.collection('menus');
 
       await menus.add({
+        'partenaireId':user?.uid,
         'nom': nom,
         'description': description,
         'prix': prix,
         'categorie': categorie,
-        'imageBase64': imageBase64, // Image stockée en base64
-        'dateCreation': FieldValue.serverTimestamp(), // Date/heure automatique
-        'disponible': true, // Par défaut le menu est disponible
+        'imageBase64': imageBase64,
+        'dateCreation': FieldValue.serverTimestamp(),
+        'disponible': true,
+        'restaurantId': _restaurantId, // ID récupéré automatiquement
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -148,7 +200,6 @@ class _AddMenuPageState extends State<AddMenuPage> {
         ),
       );
     } catch (e) {
-      // Propager l'erreur pour la gérer dans _addMenu
       throw 'Erreur lors de l\'ajout du menu: $e';
     }
   }

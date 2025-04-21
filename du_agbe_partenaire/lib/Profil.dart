@@ -1123,7 +1123,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                     size: 16,
                                   ),
                                   onTap: () {
-                                    // Navigation vers les conditions d'utilisation
+                                    
                                   },
                                 ),
                                 const Divider(),

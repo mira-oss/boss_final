@@ -5,7 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'package:sliding_clipped_nav_bar/sliding_clipped_nav_bar.dart';
-// Import des pages
+
 import 'dashboard.dart';
 import 'Modifier_Fiche.dart';
 import 'suivie_commande.dart';

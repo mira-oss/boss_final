@@ -2,6 +2,7 @@ import 'package:du_agbe_pro/Auth/clients.dart';
 import 'package:du_agbe_pro/Auth/menu.dart';
 import 'package:du_agbe_pro/chiffre.dart';
 import 'package:du_agbe_pro/commandes.dart';
+import 'package:du_agbe_pro/promotion.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -997,11 +998,11 @@ class _DashboardPageState extends State<DashboardPage>
               
               _buildQuickAccessItem(
                 context,
-                'Clients',
+                'Promotions',
                 Icons.people,
                 Colors.purple,
                 () => setState(() {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Chiffre()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>PromotionsPage()));
                   })
               ),
               _buildQuickAccessItem(
