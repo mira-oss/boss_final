@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'theme_provider.dart';
 
 class LocaleProvider with ChangeNotifier {
   String _currentLocale = 'fr';
