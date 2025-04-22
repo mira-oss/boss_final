@@ -6,6 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'Profil.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import 'gestion_visuel.dart';
+import 'promotion.dart';
+import 'Profil.dart';
 
 // Modèles pour les données
 class Order {
@@ -29,21 +35,50 @@ class Order {
 }
 
 class Promotion {
+  final String id;
   final String title;
   final String description;
   final String startDate;
   final String endDate;
   final String discount;
-  final String? imageUrl;
+  final DateTime? createdAt;
 
   Promotion({
+    required this.id,
     required this.title,
     required this.description,
     required this.startDate,
     required this.endDate,
     required this.discount,
-    this.imageUrl,
+    this.createdAt,
   });
+
+  // Convertir en Map pour Firestore
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'startDate': startDate,
+      'endDate': endDate,
+      'discount': discount,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  // Créer une Promotion à partir d'un DocumentSnapshot
+  factory Promotion.fromSnapshot(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Promotion(
+      id: doc.id,
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      startDate: data['startDate'] ?? '',
+      endDate: data['endDate'] ?? '',
+      discount: data['discount'] ?? '',
+      createdAt: data['createdAt']?.toDate(),
+    );
+  }
 }
 
 class DashboardPage extends StatefulWidget {
@@ -59,13 +94,10 @@ class _DashboardPageState extends State<DashboardPage>
   int selectedIndex = 0;
   late TabController _tabController;
 
-  // Liste des promotions
-  List<Promotion> activePromotions = [];
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // Changé de 4 à 3
   }
 
   @override
@@ -149,7 +181,6 @@ class _DashboardPageState extends State<DashboardPage>
 
   // Naviguer vers une page spécifique
   void _navigateTo(BuildContext context, String pageName) {
-    // Cette fonction sera à adapter selon votre système de navigation
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Navigation vers: $pageName'),
@@ -157,583 +188,20 @@ class _DashboardPageState extends State<DashboardPage>
         behavior: SnackBarBehavior.floating,
       ),
     );
-
-    // Utiliser Navigator.pushNamed si vous avez configuré des routes nommées
-    // Navigator.pushNamed(context, pageName);
-
-    // Ou utiliser ceci si vous préférez créer les pages à la volée
-    /*
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) {
-        switch (pageName) {
-          case 'FichePage':
-            return const FichePage();
-          case 'MenuPage':
-            return const MenuPage();
-          // Ajoutez d'autres cas selon vos pages
-          default:
-            return const DashboardPage();
-        }
-      }),
-    );
-    */
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1565C0),
-        elevation: 0,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'MJ',
-                style: TextStyle(
-                  color: Color(0xFF1565C0),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'MaJournée',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_outlined),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: const Text(
-                      '2',
-                      style: TextStyle(color: Colors.white, fontSize: 8),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            color: Colors.white,
-            onPressed: () {
-              _showNotificationDialog(context);
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: GestureDetector(
-              onTap: () {
-                // Naviguer vers la page profil
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileSettingsPage(),
-                  ),
-                );
-              },
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Color(0xFF1565C0), size: 20),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // Simuler un chargement de données
-          await Future.delayed(const Duration(seconds: 1));
-          setState(() {
-            // Actualiser les données
-          });
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatusCard(),
-              _buildStatsGrid(),
-              _buildQuickAccessMenu(),
-              _buildTabSection(),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          _showAddPromoDialog(context);
-        },
-        backgroundColor: const Color(0xFF1565C0),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Ajouter une promo',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-
-  void _showNotificationDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.notifications, color: Color(0xFF1565C0)),
-              const SizedBox(width: 10),
-              const Text('Notifications'),
-              const Spacer(),
-              IconButton(
-                icon: Icon(Icons.check_circle_outline, color: Colors.grey[600]),
-                onPressed: () {
-                  // Marquer toutes les notifications comme lues
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Toutes les notifications ont été marquées comme lues',
-                      ),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-                tooltip: 'Tout marquer comme lu',
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                _buildNotificationItem(
-                  'Nouvelle commande reçue',
-                  'CMD-004 de Jean Kouassi - il y a 5 min',
-                  Icons.shopping_bag_outlined,
-                  () {
-                    Navigator.pop(context);
-                    _navigateTo(context, 'OrderDetailsPage?orderId=CMD-004');
-                  },
-                ),
-                const Divider(),
-                _buildNotificationItem(
-                  'Nouvel avis client',
-                  'Koffi Annan vous a laissé 5 étoiles - il y a 30 min',
-                  Icons.star_outline,
-                  () {
-                    Navigator.pop(context);
-                    _navigateTo(context, 'ReviewsPage');
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Fermer'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNotificationItem(
-    String title,
-    String subtitle,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xFF1565C0).withOpacity(0.1),
-        child: Icon(icon, color: const Color(0xFF1565C0)),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-      ),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      onTap: onTap,
-      trailing: Container(
-        width: 8,
-        height: 8,
-        decoration: const BoxDecoration(
-          color: Colors.red,
-          shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-
-  void _showAddPromoDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final startDateController = TextEditingController();
-    final endDateController = TextEditingController();
-    final discountController = TextEditingController();
-
-    // Préremplir avec des valeurs par défaut pour faciliter les tests
-    startDateController.text = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    endDateController.text = DateFormat(
-      'dd/MM/yyyy',
-    ).format(DateTime.now().add(const Duration(days: 7)));
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder:
-          (context) => Container(
-            height: MediaQuery.of(context).size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Nouvelle promotion',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Titre de la promotion',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: titleController,
-                    decoration: InputDecoration(
-                      hintText: 'Ex: Happy Hour -50% sur tous les plats',
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    'Description',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: descriptionController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Détails de la promotion...',
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Date de début',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: startDateController,
-                              decoration: InputDecoration(
-                                hintText: 'JJ/MM/AAAA',
-                                prefixIcon: const Icon(
-                                  Icons.calendar_today,
-                                  size: 20,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              readOnly: true,
-                              onTap: () async {
-                                // Afficher le sélecteur de date
-                                final DateTime? pickedDate =
-                                    await showDatePicker(
-                                      context: context,
-                                      initialDate: DateTime.now(),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(
-                                        const Duration(days: 365),
-                                      ),
-                                    );
-                                if (pickedDate != null) {
-                                  startDateController.text = DateFormat(
-                                    'dd/MM/yyyy',
-                                  ).format(pickedDate);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Date de fin',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: endDateController,
-                              decoration: InputDecoration(
-                                hintText: 'JJ/MM/AAAA',
-                                prefixIcon: const Icon(
-                                  Icons.calendar_today,
-                                  size: 20,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              readOnly: true,
-                              onTap: () async {
-                                // Afficher le sélecteur de date
-                                final DateTime? pickedDate =
-                                    await showDatePicker(
-                                      context: context,
-                                      initialDate: DateTime.now().add(
-                                        const Duration(days: 7),
-                                      ),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(
-                                        const Duration(days: 365),
-                                      ),
-                                    );
-                                if (pickedDate != null) {
-                                  endDateController.text = DateFormat(
-                                    'dd/MM/yyyy',
-                                  ).format(pickedDate);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    'Réduction appliquée',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: discountController,
-                    decoration: InputDecoration(
-                      hintText: 'Ex: 20%',
-                      prefixIcon: const Icon(Icons.percent, size: 20),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 15),
-                  const Text(
-                    'Image de promotion (optionnel)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      // Logique pour sélectionner une image
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Fonctionnalité de sélection d\'image à implémenter',
-                          ),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      height: 100,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: 30,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Ajouter une image',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Validation des champs
-                        if (titleController.text.isEmpty ||
-                            descriptionController.text.isEmpty ||
-                            startDateController.text.isEmpty ||
-                            endDateController.text.isEmpty ||
-                            discountController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Veuillez remplir tous les champs obligatoires',
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        // Créer une nouvelle promotion
-                        final newPromo = Promotion(
-                          title: titleController.text,
-                          description: descriptionController.text,
-                          startDate: startDateController.text,
-                          endDate: endDateController.text,
-                          discount: '${discountController.text}%',
-                          imageUrl: 'https://via.placeholder.com/300x200',
-                        );
-
-                        // Ajouter la promotion à la liste
-                        setState(() {
-                          activePromotions.add(newPromo);
-                        });
-
-                        // Fermer la boîte de dialogue
-                        Navigator.pop(context);
-
-                        // Afficher une confirmation
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Promotion ajoutée avec succès'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1565C0),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        'Ajouter la promotion',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
-
+  // 1. Status Card at the top of the dashboard
   Widget _buildStatusCard() {
     return Container(
-      width: double.infinity,
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [const Color(0xFF1976D2), const Color(0xFF1565C0)],
         ),
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.blue.withOpacity(0.3),
@@ -742,61 +210,63 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bienvenue de retour !',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Aujourd\'hui: ${DateFormat('dd MMMM yyyy').format(DateTime.now())}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.restaurant_menu, color: Colors.white),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Restaurant Ouvert',
-                    style: TextStyle(
+                child: Row(
+                  children: const [
+                    Icon(
+                      Icons.watch_later_outlined,
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      size: 16,
                     ),
-                  ),
-                  Text(
-                    'Horaire: 08:00 - 22:00',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                    SizedBox(width: 4),
+                    Text('En ligne', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
               ),
-              const Spacer(),
-              Switch(
-                value: isOpen,
-                onChanged: (value) {
-                  setState(() {
-                    isOpen = value;
-                  });
-                },
-                activeColor: Colors.white,
-                activeTrackColor: Colors.green,
+              const SizedBox(height: 8),
+              const Text(
+                '2 nouvelles commandes',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatusItem('Commandes', '12', Icons.shopping_bag_outlined),
-              _buildStatusItem('En cuisine', '3', Icons.restaurant_outlined),
-              _buildStatusItem('À livrer', '2', Icons.delivery_dining_outlined),
-              _buildStatusItem('Clients', '25', Icons.people_outline),
             ],
           ),
         ],
@@ -804,91 +274,54 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildStatusItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
-        ),
-      ],
-    );
-  }
-
+  // 2. Stats Grid showing key metrics
   Widget _buildStatsGrid() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Performance du jour',
+            'Aperçu',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                  child: _buildStatCard(
-                    icon: Icons.payments_outlined,
-                    value: '125,000',
-                    label: 'Chiffre d\'affaires',
-                    color: const Color(0xFF4CAF50),
-                    change: '+12%',
-                  ),
-                ),
-              
+              _buildStatCard(
+                'Revenus du jour',
+                '45 000 FCFA',
+                Icons.attach_money,
+                Colors.green,
+                true,
+              ),
               const SizedBox(width: 12),
-               Expanded(
-                  child: _buildStatCard(
-                    icon: Icons.shopping_cart_outlined,
-                    value: '28',
-                    label: 'Commandes',
-                    color: const Color(0xFF2196F3),
-                    change: '+5%',
-                  ),
-                ),
-              
+              _buildStatCard(
+                'Commandes',
+                '18',
+                Icons.shopping_bag_outlined,
+                Colors.blue,
+                false,
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.star_outline,
-                  value: '4.8',
-                  label: 'Satisfaction',
-                  color: const Color(0xFFFFC107),
-                  change: '+0.2',
-                ),
+              _buildStatCard(
+                'Clients',
+                '12',
+                Icons.people_outline,
+                Colors.orange,
+                false,
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.people_outline,
-                  value: '42',
-                  label: 'Nouveaux clients',
-                  color: const Color(0xFFFF5722),
-                  change: '+8%',
-                ),
+              _buildStatCard(
+                'Panier moyen',
+                '3 750 FCFA',
+                Icons.shopping_cart_outlined,
+                Colors.purple,
+                false,
               ),
             ],
           ),
@@ -897,72 +330,78 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-    required String change,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  change,
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+  // Helper method for stat cards
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    bool showTrend,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: Icon(icon, color: color, size: 20),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        ],
+                if (showTrend)
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_upward, color: Colors.green, size: 14),
+                      Text(
+                        '12%',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  // 3. Quick Access Menu with shortcuts
   Widget _buildQuickAccessMenu() {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -970,94 +409,94 @@ class _DashboardPageState extends State<DashboardPage>
             'Accès rapide',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildQuickAccessItem(
-                context,
-                'Menu',
-                Icons.restaurant_menu,
-                Colors.orange,
-                () => setState(() {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>RestaurantApp()));
-                  })
-              ),
-             _buildQuickAccessItem(
-                  context,
+          const SizedBox(height: 16),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildQuickAccessButton(Icons.restaurant_menu, 'Menu', () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const Chiffre()),
+                  );
+                }),
+                _buildQuickAccessButton(
+                  Icons.shopping_bag_outlined,
                   'Commandes',
-                  Icons.receipt_long,
-                  Colors.blue,
-                  () => 
-                  setState(() {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>CommandesPage()));
-                  })
-            
+                  () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const CommandesPage(),
+                      ),
+                    );
+                  },
                 ),
-              
-              _buildQuickAccessItem(
-                context,
-                'Clients',
-                Icons.people,
-                Colors.purple,
-                () => setState(() {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Chiffre()));
-                  })
-              ),
-              _buildQuickAccessItem(
-                context,
-                'Analyses',
-                Icons.insert_chart,
-                Colors.green,
-                () => 
-                  setState(() {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Chiffre()));
-                  })
-              ),
-            ],
+                _buildQuickAccessButton(Icons.bar_chart, 'Chiffres', () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const SalesDetailPage(),
+                    ),
+                  );
+                }),
+                // Remplacé Paramètres par Promotions
+                _buildQuickAccessButton(Icons.local_offer, 'Promotions', () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => PromotionsPage()),
+                  );
+                }),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickAccessItem(
-    BuildContext context,
-    String label,
+  // Helper method for quick access buttons
+  Widget _buildQuickAccessButton(
     IconData icon,
-    Color color,
+    String label,
     VoidCallback onTap,
   ) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(15),
+      child: Container(
+        margin: const EdgeInsets.only(right: 16),
+        width: 80,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: const Color(0xFF1565C0), size: 24),
             ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
+  // 4. Tab Section with Recent Orders, Reviews, and Popular Menu Items
   Widget _buildTabSection() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TabBar(
             controller: _tabController,
@@ -1065,21 +504,22 @@ class _DashboardPageState extends State<DashboardPage>
             unselectedLabelColor: Colors.grey,
             indicatorColor: const Color(0xFF1565C0),
             tabs: const [
-              Tab(text: 'Commandes'),
-              Tab(text: 'Avis'),
-              Tab(text: 'Menu'),
-              Tab(text: 'Statistiques'),
+              Tab(text: 'Commandes récentes'),
+              Tab(text: 'Avis clients'),
+              Tab(text: 'Plats populaires'),
+              // Supprimé le Tab 'Marketing'
             ],
           ),
           SizedBox(
-            height: 300,
+            height: 300, // Fixed height for the tab content
             child: TabBarView(
               controller: _tabController,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
-                _buildOrdersTab(),
+                _buildRecentOrdersTab(),
                 _buildReviewsTab(),
-                _buildMenuTab(),
-                _buildStatsTab(),
+                _buildPopularItemsTab(),
+                // Supprimé _buildMarketingTab()
               ],
             ),
           ),
@@ -1088,276 +528,353 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildOrdersTab() {
+  // Tab content for Recent Orders
+  Widget _buildRecentOrdersTab() {
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: recentOrders.length,
       itemBuilder: (context, index) {
         final order = recentOrders[index];
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.1),
-                blurRadius: 5,
+                blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundImage: CachedNetworkImageProvider(order.imageUrl),
-            ),
-            title: Text(
-              order.customerName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order.items.join(', '),
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                Text(
-                  '${order.time} • ${order.status}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${order.amount} FCFA',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1565C0),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    order.status,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _getStatusColor(order.status),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: CachedNetworkImageProvider(order.imageUrl),
+                radius: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          order.customerName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          order.time,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      order.items.join(', '),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${order.amount} FCFA',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1565C0),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(
+                              order.status,
+                            ).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            order.status,
+                            style: TextStyle(
+                              color: _getStatusColor(order.status),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            onTap: () {
-              _navigateTo(context, 'OrderDetailsPage?orderId=${order.id}');
-            },
+              ),
+            ],
           ),
         );
       },
     );
   }
 
+  // Helper method for status colors
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'en attente':
+    switch (status) {
+      case 'En attente':
         return Colors.orange;
-      case 'en préparation':
+      case 'En préparation':
         return Colors.blue;
-      case 'prêt':
+      case 'Prêt':
         return Colors.green;
-      case 'livré':
-        return Colors.purple;
+      case 'Terminé':
+        return Colors.grey;
       default:
         return Colors.grey;
     }
   }
 
+  // Tab content for Reviews
   Widget _buildReviewsTab() {
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: recentReviews.length,
       itemBuilder: (context, index) {
         final review = recentReviews[index];
+        final rating =
+            (review['rating'] as num).toInt(); // Convertir num en int
+
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.1),
-                blurRadius: 5,
+                blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundImage: CachedNetworkImageProvider(
-                review['imageUrl'] as String,
-              ),
-            ),
-            title: Text(
-              review['customerName'] as String,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: List.generate(
-                    5,
-                    (i) => Icon(
-                      i <
-                              (review['rating']
-                                  as int) // Parenthèses ajoutées pour plus de clarté
-                          ? Icons.star
-                          : Icons.star_border,
-                      color: Colors.amber,
-                      size: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: CachedNetworkImageProvider(
+                      review['imageUrl'],
                     ),
+                    radius: 20,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  review['comment'] as String,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Il y a ${review['time']}',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        review['customerName'],
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          ...List.generate(
+                            rating,
+                            (index) => const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 16,
+                            ),
+                          ),
+                          ...List.generate(
+                            5 - rating,
+                            (index) => Icon(
+                              Icons.star_outline,
+                              color: Colors.grey[400],
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'il y a ${review['time']}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                review['comment'],
+                style: TextStyle(color: Colors.grey[800], fontSize: 13),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildMenuTab() {
+  // Tab content for Popular Menu Items
+  Widget _buildPopularItemsTab() {
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: menuItems.length,
       itemBuilder: (context, index) {
         final item = menuItems[index];
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.1),
-                blurRadius: 5,
+                blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                item['imageUrl'] as String,
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-              ),
-            ),
-            title: Text(
-              item['name'] as String,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item['description'] as String,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          child: Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: CachedNetworkImageProvider(item['imageUrl']),
+                    fit: BoxFit.cover,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${item['orderCount']} commandes ce mois',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-            trailing: Text(
-              '${item['price']} FCFA',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1565C0),
               ),
-            ),
-            onTap: () {
-              _navigateTo(context, 'MenuItemPage?itemId=${item['name']}');
-            },
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['name'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item['description'],
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${item['price']} FCFA',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1565C0),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${item['orderCount']} commandes',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildStatsTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.insert_chart_outlined, size: 50, color: Colors.grey),
-          const SizedBox(height: 16),
-          Text(
-            'Statistiques détaillées',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[600],
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          'Du Agbe Pro',
+          style: TextStyle(
+            color: Colors.grey[800],
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Consultez vos performances complètes',
-            style: TextStyle(color: Colors.grey[500]),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_none_outlined),
+            color: Colors.grey[800],
             onPressed: () {
-              _navigateTo(context, 'AnalyticsPage');
+              _navigateTo(context, 'NotificationsPage');
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1565C0),
-            ),
-            child: const Text('Voir les statistiques complètes'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            color: Colors.grey[800],
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ProfileSettingsWrapper(),
+                ),
+              );
+            },
           ),
         ],
       ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatusCard(),
+            _buildStatsGrid(),
+            _buildQuickAccessMenu(),
+            _buildTabSection(),
+            // Supprimé _buildPromotionsSection() car maintenant dans une page dédiée
+          ],
+        ),
+      ),
     );
-  }
-
-  // Fonction pour envoyer les données à Firebase
-  void _sendDataToFirebase() {
-    // Exemple d'envoi des commandes récentes
-    for (var order in recentOrders) {
-      // Envoyer chaque commande à Firebase
-      // firestore.collection('orders').add(order.toMap());
-    }
-
-    // Exemple d'envoi des avis
-    for (var review in recentReviews) {
-      // firestore.collection('reviews').add(review);
-    }
-
-    // Exemple d'envoi des éléments du menu
-    for (var item in menuItems) {
-      // firestore.collection('menuItems').add(item);
-    }
   }
 }
