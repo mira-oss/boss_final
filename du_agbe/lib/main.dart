@@ -1,36 +1,21 @@
-import 'package:du_agbe/connexion.dart';
-import 'package:du_agbe/firebase_options.dart';
-import 'package:du_agbe/homePage.dart';
-import 'package:du_agbe/profil.dart';
-import 'package:du_agbe/themeNotifier.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-//import 'package:du_agbe/theme_notifier.dart'; // Importez le ThemeNotifier
+import 'package:du_agbe/map.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:sliding_clipped_nav_bar/sliding_clipped_nav_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. Initialisation de Firebase EN PREMIER
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // 2. Chargement du .env
-  try {
-    await dotenv.load(fileName: ".env");
-    print("ENV loaded: ${dotenv.env['OPENAI_API_KEY']}");
-  } catch (e) {
-    print("Error loading .env: $e");
-  }
-
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeNotifier(),
-      child: const MyApp(),
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Application de Paiement',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: Stepdumaps(),
     ),
   );
 }
@@ -75,7 +60,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late PageController _pageController;
   int selectedIndex = 0;
-  final pages =  [
+  final pages = const [
     Homepage(),
     Profil(),
   ];
