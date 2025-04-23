@@ -22,6 +22,7 @@ class Order {
   final List<String> items;
   final String amount;
   final String imageUrl;
+  final DateTime date;
 
   Order({
     required this.id,
@@ -31,7 +32,8 @@ class Order {
     required this.items,
     required this.amount,
     required this.imageUrl,
-  });
+    DateTime? date,
+  }) : date = date ?? DateTime.now();
 }
 
 class Promotion {
@@ -416,7 +418,7 @@ class _DashboardPageState extends State<DashboardPage>
               children: [
                 _buildQuickAccessButton(Icons.restaurant_menu, 'Menu', () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const Chiffre()),
+                    MaterialPageRoute(builder: (context) => RestaurantApp()),
                   );
                 }),
                 _buildQuickAccessButton(
@@ -529,94 +531,130 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   // Tab content for Recent Orders
+  // Tab content for Recent Orders
   Widget _buildRecentOrdersTab() {
+    final formatCurrency = NumberFormat.currency(
+      locale: 'fr_FR',
+      symbol: 'FCFA',
+      decimalDigits: 0,
+    );
+    final formatDate = DateFormat('HH:mm');
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: recentOrders.length,
       itemBuilder: (context, index) {
         final order = recentOrders[index];
-        return Container(
-          margin: const EdgeInsets.only(top: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
+            title: Text(
+              '${order.id} - ${order.customerName}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF202124),
               ),
-            ],
-          ),
-          child: Row(
+            ),
+            subtitle: Row(
+              children: [
+                Text(
+                  order.time,
+                  style: const TextStyle(color: Color(0xFF5F6368)),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        order.status == 'En préparation'
+                            ? const Color(0xFFFEF7E0)
+                            : order.status == 'En attente'
+                            ? const Color(0xFFE8F0FE)
+                            : const Color(0xFFE6F4EA),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    order.status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _getStatusColor(order.status),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            trailing: Text(
+              '${order.amount} FCFA',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Color(0xFF202124),
+              ),
+            ),
             children: [
-              CircleAvatar(
-                backgroundImage: CachedNetworkImageProvider(order.imageUrl),
-                radius: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
+              Container(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          order.customerName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          order.time,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      order.items.join(', '),
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const Divider(),
+                    const Text(
+                      'Détail de la commande',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${order.amount} FCFA',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1565C0),
-                          ),
+                    // Liste des articles
+                    ...order.items.map<Widget>((item) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(item, style: const TextStyle(fontSize: 14)),
+                          ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(
-                              order.status,
-                            ).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            order.status,
-                            style: TextStyle(
-                              color: _getStatusColor(order.status),
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                      );
+                    }).toList(),
+                    const Divider(),
+                    // Actions
+                    Row(
+                      children: [
+                        if (order.status != 'Prêt' && order.status != 'Terminé')
+                          TextButton.icon(
+                            icon: const Icon(Icons.check_circle_outline),
+                            label: Text(
+                              order.status == 'En attente'
+                                  ? 'Marquer comme en préparation'
+                                  : 'Marquer comme prêt',
                             ),
+                            onPressed: () {
+                              // Mettre à jour le statut
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Statut mis à jour'),
+                                ),
+                              );
+                            },
                           ),
+                        const Spacer(),
+                        TextButton.icon(
+                          icon: const Icon(Icons.print),
+                          label: const Text('Imprimer'),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Impression en cours...'),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),

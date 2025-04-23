@@ -273,8 +273,8 @@ class _ConnexionPageState extends State<ConnexionPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  'assets/images/er.png',
+                child: Image.network(
+                  'https://tse4.mm.bing.net/th?id=OIP.r7BYYWaRTSnYsX1Y-Hm69QHaFj&pid=Api&P=0&h=180',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     // Déboguer pourquoi l'image ne charge pas
@@ -282,6 +282,10 @@ class _ConnexionPageState extends State<ConnexionPage> {
                     return const Center(
                       child: Icon(Icons.image_not_supported, size: 50),
                     );
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator());
                   },
                 ),
               ),
