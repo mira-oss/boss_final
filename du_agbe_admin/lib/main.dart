@@ -34,7 +34,7 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     final themeNotifier = Provider.of<ThemeNotifier>(context);
@@ -62,7 +62,8 @@ class MyApp extends StatelessWidget {
         future: FirebaseAuth.instance.authStateChanges().first,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return const Scaffold(
+                body: Center(child: CircularProgressIndicator()));
           }
           if (snapshot.hasData && snapshot.data != null) {
             return const MyHomePage();
@@ -103,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
     EventListScreen(),
     const Profil(),
   ];
-  
+
   @override
   void initState() {
     super.initState();
@@ -138,7 +139,8 @@ class _MyHomePageState extends State<MyHomePage> {
             blurRadius: 10,
             spreadRadius: 2,
             offset: const Offset(0, -2),
-      )],
+          )
+        ],
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
