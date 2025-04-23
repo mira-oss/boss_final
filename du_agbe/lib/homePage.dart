@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:du_agbe/details.dart';
 import 'package:du_agbe/details_partenaire.dart';
 import 'package:du_agbe/itineraire.dart';
+import 'package:du_agbe/map.dart';
 import 'package:du_agbe/opeinai_services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -24,13 +25,13 @@ class _HomepageState extends State<Homepage> {
   bool _speechEnabled = false;
   String _text = '';
   String _errorMessage = '';
-  
+
   // Données
   List<Map<String, dynamic>> categories = [];
   List<Map<String, dynamic>> _partners = [];
   List<Map<String, dynamic>> events = [];
   List<Map<String, dynamic>> _generatedItineraries = [];
-  
+
   // États de chargement
   bool _isLoading = true;
   bool _isLoadingCategories = false;
@@ -126,7 +127,7 @@ class _HomepageState extends State<Homepage> {
 
     try {
       final response = await OpenAIService.getAIResponse(_text);
-      
+
       setState(() {
         _generatedItineraries = [
           {
@@ -138,10 +139,10 @@ class _HomepageState extends State<Homepage> {
         ];
         _isGeneratingItinerary = false;
       });
-      
-      if (_text.toLowerCase().contains('parcours') || 
+
+      if (_text.toLowerCase().contains('parcours') ||
           _text.toLowerCase().contains('itinéraire') ||
-          _text.toLowerCase().contains('visite') || 
+          _text.toLowerCase().contains('visite') ||
           _text.toLowerCase().contains('voyage')) {
         _generateItineraryFromText();
       }
@@ -154,28 +155,45 @@ class _HomepageState extends State<Homepage> {
   }
 
   Map<String, dynamic> _extractDetailsFromText(String text) {
-  // Définir des mots-clés pour les moods
-  final List<String> availableMoods = ["Relax", "Romantique", "Calme", "Joie"];
-  
-  // Extraire le budget (exemple : "10000 FCFA" ou "10 000")
-  final budgetRegex = RegExp(r'(\d{1,3}(?:[ \.,]?\d{3})*)\s*(FCFA|f|cfa)?', caseSensitive: false);
-  final budgetMatch = budgetRegex.firstMatch(text);
-  final budget = budgetMatch != null ? budgetMatch.group(1)?.replaceAll(RegExp(r'[ \.,]'), '') : null;
+    // Définir des mots-clés pour les moods
+    final List<String> availableMoods = [
+      "Relax",
+      "Romantique",
+      "Calme",
+      "Joie"
+    ];
 
-  // Extraire la location (exemple : "à Cotonou" ou "dans Porto-Novo")
-  final locationRegex = RegExp(r'\b(?:à|dans|en|au|aux)\s+([A-Za-zÀ-ÖØ-öø-ÿ\s\-]+)', caseSensitive: false);
-  final locationMatch = locationRegex.firstMatch(text);
-  final location = locationMatch != null ? locationMatch.group(1)?.trim() : null;
+    // Extraire le budget (exemple : "10000 FCFA" ou "10 000")
+    final budgetRegex = RegExp(r'(\d{1,3}(?:[ \.,]?\d{3})*)\s*(FCFA|f|cfa)?',
+        caseSensitive: false);
+    final budgetMatch = budgetRegex.firstMatch(text);
+    final budget = budgetMatch != null
+        ? budgetMatch.group(1)?.replaceAll(RegExp(r'[ \.,]'), '')
+        : null;
 
-  // Identifier les moods dans le texte
-  final userMoods = availableMoods.where((mood) => text.toLowerCase().contains(mood.toLowerCase())).toList();
+    // Extraire la location (exemple : "à Cotonou" ou "dans Porto-Novo")
+    final locationRegex = RegExp(
+        r'\b(?:à|dans|en|au|aux)\s+([A-Za-zÀ-ÖØ-öø-ÿ\s\-]+)',
+        caseSensitive: false);
+    final locationMatch = locationRegex.firstMatch(text);
+    final location =
+        locationMatch != null ? locationMatch.group(1)?.trim() : null;
 
-  return {
-    'budget': budget ?? "10000", // Valeur par défaut si aucun budget n'est trouvé
-    'location': location ?? "Cotonou", // Valeur par défaut si aucune location n'est trouvée
-    'moods': userMoods.isNotEmpty ? userMoods : ["Relax"], // Valeur par défaut si aucun mood n'est trouvé
-  };
-}
+    // Identifier les moods dans le texte
+    final userMoods = availableMoods
+        .where((mood) => text.toLowerCase().contains(mood.toLowerCase()))
+        .toList();
+
+    return {
+      'budget':
+          budget ?? "10000", // Valeur par défaut si aucun budget n'est trouvé
+      'location': location ??
+          "Cotonou", // Valeur par défaut si aucune location n'est trouvée
+      'moods': userMoods.isNotEmpty
+          ? userMoods
+          : ["Relax"], // Valeur par défaut si aucun mood n'est trouvé
+    };
+  }
 
   Future<void> _generateItineraryFromText() async {
     if (_text.isEmpty) return;
@@ -187,7 +205,7 @@ class _HomepageState extends State<Homepage> {
 
     try {
       final details = _extractDetailsFromText(_text);
-      
+
       final response = await OpenAIService.generateItinerary(
         userPrompt: _text,
         budget: details['budget'],
@@ -196,18 +214,26 @@ class _HomepageState extends State<Homepage> {
       );
 
       final List<Map<String, dynamic>> formattedItineraries = [];
-      
-      if (response['parcours'] != null) {
+
+      if (response['parcours'] != null && response['parcours'] is List) {
         for (var parcours in response['parcours']) {
+          final etapes = (parcours['etapes'] as List?)
+                  ?.map((etape) => {
+                        'activity': etape['nom'],
+                        'time': etape['horaire'] ?? '--',
+                        'phone': etape['phone'] ?? '',
+                        'latitude': etape['latitude'] ?? 0.0,
+                        'longitude': etape['longitude'] ?? 0.0,
+                        'mood': etape['mood'] ?? '',
+                      })
+                  .toList() ??
+              [];
+
           formattedItineraries.add({
             'title': parcours['titre'] ?? 'Parcours',
-            'description': 'Budget total: ${parcours['budget_total'] ?? 'N/A'}',
-            'activities': (parcours['etapes'] as List?)?.map((etape) => {
-              'activity': '${etape['nom']} (${etape['type']})',
-              'time': etape['horaires'] ?? '--',
-              'price': etape['prix'] ?? '0',
-            }).toList() ?? [],
-            'totalPrice': parcours['budget_total'] ?? '0',
+            'description': parcours['description'] ?? '',
+            'activities': etapes,
+            'type': 'restaurant',
           });
         }
       }
@@ -230,28 +256,38 @@ class _HomepageState extends State<Homepage> {
     });
 
     try {
-      QuerySnapshot querySnapshot = await _firestore.collection('categories').get();
-      
+      QuerySnapshot querySnapshot =
+          await _firestore.collection('categories').get();
+
       List<Map<String, dynamic>> fetchedCategories = [];
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
+
         IconData getIconFromName(String iconName) {
           switch (iconName) {
-            case 'utensils': return FontAwesomeIcons.utensils;
-            case 'shoppingBag': return FontAwesomeIcons.shoppingBag;
-            case 'umbrellaBeach': return FontAwesomeIcons.umbrellaBeach;
-            case 'music': return FontAwesomeIcons.music;
-            case 'mugHot': return FontAwesomeIcons.mugHot;
-            case 'landmark': return FontAwesomeIcons.landmark;
-            case 'hotel': return FontAwesomeIcons.hotel;
-            case 'church': return FontAwesomeIcons.church;
-            default: return FontAwesomeIcons.tag;
+            case 'utensils':
+              return FontAwesomeIcons.utensils;
+            case 'shoppingBag':
+              return FontAwesomeIcons.shoppingBag;
+            case 'umbrellaBeach':
+              return FontAwesomeIcons.umbrellaBeach;
+            case 'music':
+              return FontAwesomeIcons.music;
+            case 'mugHot':
+              return FontAwesomeIcons.mugHot;
+            case 'landmark':
+              return FontAwesomeIcons.landmark;
+            case 'hotel':
+              return FontAwesomeIcons.hotel;
+            case 'church':
+              return FontAwesomeIcons.church;
+            default:
+              return FontAwesomeIcons.tag;
           }
         }
-        
+
         IconData iconData = getIconFromName(data['icon'] ?? 'tag');
-        
+
         Color color;
         try {
           color = Color(int.parse(data['color'].replaceFirst('#', '0xff')));
@@ -286,22 +322,25 @@ class _HomepageState extends State<Homepage> {
     });
 
     try {
-      QuerySnapshot querySnapshot = await _firestore.collection('partenaires').get();
-      
+      QuerySnapshot querySnapshot =
+          await _firestore.collection('partenaires').get();
+
       // Récupérer tous les menus en une seule requête
       final menusSnapshot = await _firestore.collection('menus').get();
-      final allMenus = menusSnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      final allMenus = menusSnapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
 
       List<Map<String, dynamic>> fetchedPartners = [];
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final partnerId = doc.id;
-        
+
         // Filtrer les menus pour ce partenaire
-        final partnerMenus = allMenus.where(
-          (menu) => menu['partenaire_Id'] == partnerId
-        ).toList();
-        
+        final partnerMenus = allMenus
+            .where((menu) => menu['partenaire_Id'] == partnerId)
+            .toList();
+
         // Compter les menus par catégorie
         final menuCategories = {};
         for (var menu in partnerMenus) {
@@ -334,7 +373,8 @@ class _HomepageState extends State<Homepage> {
     }
   }
 
-  Future<Map<String, List<Map<String, dynamic>>>> _fetchMenusByCategory(String partnerId) async {
+  Future<Map<String, List<Map<String, dynamic>>>> _fetchMenusByCategory(
+      String partnerId) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
           .collection('menus')
@@ -345,11 +385,11 @@ class _HomepageState extends State<Homepage> {
       for (var doc in querySnapshot.docs) {
         final menu = doc.data() as Map<String, dynamic>;
         final category = menu['categorie'] ?? 'Autre';
-        
+
         if (!result.containsKey(category)) {
           result[category] = [];
         }
-        
+
         result[category]!.add({
           'id': doc.id,
           'name': menu['nom'] ?? 'Menu',
@@ -358,7 +398,7 @@ class _HomepageState extends State<Homepage> {
           'imageUrl': menu['imageUrl'] ?? '',
         });
       }
-      
+
       return result;
     } catch (e) {
       debugPrint('Erreur de chargement des menus: $e');
@@ -376,13 +416,15 @@ class _HomepageState extends State<Homepage> {
           .collection('events')
           .where('status', isEqualTo: 'published')
           .get();
-      
+
       List<Map<String, dynamic>> fetchedEvents = [];
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
+
         String imageUrl = '';
-        if (data['imageUrls'] != null && data['imageUrls'] is List && (data['imageUrls'] as List).isNotEmpty) {
+        if (data['imageUrls'] != null &&
+            data['imageUrls'] is List &&
+            (data['imageUrls'] as List).isNotEmpty) {
           final firstImage = data['imageUrls'][0];
           if (firstImage is String) {
             if (firstImage.startsWith('data:image')) {
@@ -400,7 +442,9 @@ class _HomepageState extends State<Homepage> {
           'title': data['title'] ?? 'Sans titre',
           'description': data['description'] ?? '',
           'location': data['location'] ?? 'Lieu non spécifié',
-          'imageUrl': imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/150',
+          'imageUrl': imageUrl.isNotEmpty
+              ? imageUrl
+              : 'https://via.placeholder.com/150',
           'isFavorite': false,
           'date': data['date'],
         });
@@ -427,7 +471,7 @@ class _HomepageState extends State<Homepage> {
 
   void _showItineraryDetails(Map<String, dynamic> itinerary) {
     final activities = itinerary['activities'] as List<dynamic>? ?? [];
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -444,10 +488,8 @@ class _HomepageState extends State<Homepage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                itinerary['title'] ?? 'Parcours',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)
-              ),
+              Text(itinerary['title'] ?? 'Parcours',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               SizedBox(height: 10),
               Text(
                 itinerary['description'] ?? '',
@@ -455,49 +497,60 @@ class _HomepageState extends State<Homepage> {
               ),
               SizedBox(height: 20),
               Text(
-                "Activités du parcours:",
+                "Restaurants du parcours:",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
-              ...activities.map((activity) => Card(
-                margin: EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: Icon(Icons.schedule),
-                  title: MarkdownBody(
-                    data: activity['activity'] ?? '',
-                    styleSheet: MarkdownStyleSheet(
-                      p: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                  subtitle: Row(
-                    children: [
-                      Text(activity['time'] ?? ''),
-                      SizedBox(width: 15),
-                      Text(
-                        '${activity['price'] == '0' ? 'Gratuit' : '${activity['price']} FCFA'}',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              )).toList(),
-              SizedBox(height: 15),
-              Card(
-                color: Colors.orange[50],
-                child: Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text("Total estimé:", style: TextStyle(fontSize: 16)),
-                      Text(
-                        "${itinerary['totalPrice'] ?? '0'} FCFA",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              ...activities
+                  .map((activity) => Card(
+                        margin: EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: Icon(Icons.restaurant, color: Colors.orange),
+                          title: Text(activity['activity'] ?? ''),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(activity['time'] ?? '--'),
+                                  SizedBox(width: 15),
+                                  Icon(Icons.mood, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(activity['mood'] ?? ''),
+                                ],
+                              ),
+                              if (activity['phone']?.isNotEmpty ?? false) ...[
+                                SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.phone, size: 16),
+                                    SizedBox(width: 4),
+                                    Text(activity['phone']),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                          onTap: () {
+                            // Naviguer vers la carte avec les coordonnées du restaurant
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => Stepdumaps(
+                                  initialData: {
+                                    'latitude': activity['latitude'],
+                                    'longitude': activity['longitude'],
+                                    'name': activity['activity'],
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ))
+                  .toList(),
               SizedBox(height: 20),
               Row(
                 children: [
@@ -607,7 +660,8 @@ class _HomepageState extends State<Homepage> {
       return Container(
         height: 100,
         color: Colors.grey[200],
-        child: const Center(child: Icon(Icons.business, size: 50, color: Colors.grey)),
+        child: const Center(
+            child: Icon(Icons.business, size: 50, color: Colors.grey)),
       );
     }
     return Image.network(
@@ -618,7 +672,8 @@ class _HomepageState extends State<Homepage> {
       errorBuilder: (_, __, ___) => Container(
         height: 100,
         color: Colors.grey[200],
-        child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+        child:
+            const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
       ),
     );
   }
@@ -633,7 +688,8 @@ class _HomepageState extends State<Homepage> {
           children: [
             Icon(Icons.image_not_supported, size: 40, color: Colors.grey[600]),
             SizedBox(height: 8),
-            Text('Image non disponible', style: TextStyle(color: Colors.grey[600])),
+            Text('Image non disponible',
+                style: TextStyle(color: Colors.grey[600])),
           ],
         ),
       ),
@@ -725,7 +781,8 @@ class _HomepageState extends State<Homepage> {
 
               if (_text.isNotEmpty) ...[
                 SizedBox(height: 20),
-                Text('Vous avez dit :', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Vous avez dit :',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 SizedBox(height: 10),
                 Container(
                   padding: EdgeInsets.all(12),
@@ -746,13 +803,16 @@ class _HomepageState extends State<Homepage> {
 
               if (_generatedItineraries.isNotEmpty) ...[
                 SizedBox(height: 20),
-                Text("Parcours suggérés:", 
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text("Parcours suggérés:",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 SizedBox(height: 10),
-                ..._generatedItineraries.map((itinerary) => ItineraryCard(
-                  itinerary: itinerary,
-                  onSelect: () => _showItineraryDetails(itinerary),
-                )).toList(),
+                ..._generatedItineraries
+                    .map((itinerary) => ItineraryCard(
+                          itinerary: itinerary,
+                          onSelect: () => _showItineraryDetails(itinerary),
+                        ))
+                    .toList(),
               ],
 
               SizedBox(height: 30),
@@ -779,7 +839,9 @@ class _HomepageState extends State<Homepage> {
                                   children: [
                                     CircleAvatar(
                                       radius: 30,
-                                      backgroundColor: categories[index]["color"]!.withOpacity(0.2),
+                                      backgroundColor: categories[index]
+                                              ["color"]!
+                                          .withOpacity(0.2),
                                       child: Icon(
                                         categories[index]["icon"],
                                         color: categories[index]["color"],
@@ -805,17 +867,19 @@ class _HomepageState extends State<Homepage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text("Événements",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   TextButton(
                     onPressed: () {},
-                    child: Text("Voir tout", style: TextStyle(color: Colors.orange)),
+                    child: Text("Voir tout",
+                        style: TextStyle(color: Colors.orange)),
                   ),
                 ],
               ),
 
               SizedBox(height: 15),
-              
-              _isLoadingEvents 
+
+              _isLoadingEvents
                   ? Center(child: CircularProgressIndicator())
                   : events.isEmpty
                       ? Center(child: Text("Aucun événement à afficher"))
@@ -834,7 +898,8 @@ class _HomepageState extends State<Homepage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => EventDetailsPage(event: event),
+                                        builder: (context) =>
+                                            EventDetailsPage(event: event),
                                       ),
                                     );
                                   },
@@ -843,58 +908,73 @@ class _HomepageState extends State<Homepage> {
                                       borderRadius: BorderRadius.circular(15),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         ClipRRect(
-                                          borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-                                          child: _buildEventImage(event['imageUrl']),
+                                          borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(15)),
+                                          child: _buildEventImage(
+                                              event['imageUrl']),
                                         ),
                                         Padding(
                                           padding: EdgeInsets.all(15),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
                                                 children: [
                                                   Expanded(
                                                     child: Text(
                                                       event['title'],
                                                       style: TextStyle(
-                                                        fontSize: 18,
-                                                        fontWeight: FontWeight.bold),
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.bold),
                                                     ),
                                                   ),
                                                   IconButton(
                                                     icon: Icon(
-                                                      event['isFavorite'] ? Icons.favorite : Icons.favorite_border,
-                                                      color: event['isFavorite'] ? Colors.red : Colors.grey,
+                                                      event['isFavorite']
+                                                          ? Icons.favorite
+                                                          : Icons
+                                                              .favorite_border,
+                                                      color: event['isFavorite']
+                                                          ? Colors.red
+                                                          : Colors.grey,
                                                     ),
-                                                    onPressed: () => _toggleFavorite(index),
+                                                    onPressed: () =>
+                                                        _toggleFavorite(index),
                                                   ),
                                                 ],
                                               ),
-                                              
                                               SizedBox(height: 5),
-                                              
                                               Text(
                                                 event['description'].length > 50
                                                     ? '${event['description'].substring(0, 20)}...'
                                                     : event['description'],
-                                                style: TextStyle(color: Colors.grey[600]),
+                                                style: TextStyle(
+                                                    color: Colors.grey[600]),
                                               ),
-                                              
                                               SizedBox(height: 10),
-                                              
                                               Row(
                                                 children: [
-                                                  Icon(Icons.location_on, size: 16, color: Colors.grey),
+                                                  Icon(Icons.location_on,
+                                                      size: 16,
+                                                      color: Colors.grey),
                                                   SizedBox(width: 5),
                                                   Expanded(
                                                     child: Text(
                                                       event['location'],
-                                                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.grey),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     ),
                                                   ),
                                                 ],
@@ -910,25 +990,27 @@ class _HomepageState extends State<Homepage> {
                             },
                           ),
                         ),
-                        
+
               SizedBox(height: 30),
-              
+
               // Section Lieux partenaires
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text("Lieux partenaires",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   TextButton(
                     onPressed: () {},
-                    child: Text("Voir tout", style: TextStyle(color: Colors.orange)),
+                    child: Text("Voir tout",
+                        style: TextStyle(color: Colors.orange)),
                   ),
                 ],
               ),
 
               SizedBox(height: 15),
 
-              _isLoadingPartners 
+              _isLoadingPartners
                   ? Center(child: CircularProgressIndicator())
                   : _partners.isEmpty
                       ? Center(child: Text("Aucun partenaire à afficher"))
@@ -946,19 +1028,22 @@ class _HomepageState extends State<Homepage> {
                                   margin: EdgeInsets.only(right: 15),
                                   child: Card(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         _buildPartnerImage(partner['imageUrl']),
                                         Padding(
                                           padding: EdgeInsets.all(10),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 partner['name'],
                                                 style: TextStyle(
-                                                  fontSize: 16, 
-                                                  fontWeight: FontWeight.bold),
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.bold),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -966,12 +1051,14 @@ class _HomepageState extends State<Homepage> {
                                               Text(
                                                 partner['category'],
                                                 style: TextStyle(
-                                                  fontSize: 12, 
-                                                  color: Colors.grey),
+                                                    fontSize: 12,
+                                                    color: Colors.grey),
                                               ),
-                                              if (partner['hasMenus'] == true) ...[
+                                              if (partner['hasMenus'] ==
+                                                  true) ...[
                                                 SizedBox(height: 8),
-                                                _buildMenuCategories(partner['menuCategories']),
+                                                _buildMenuCategories(
+                                                    partner['menuCategories']),
                                               ],
                                             ],
                                           ),

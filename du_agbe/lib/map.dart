@@ -7,12 +7,10 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 
 class Stepdumaps extends StatefulWidget {
-  
   final Map<String, dynamic>? initialData;
-  
+
   const Stepdumaps({
-    super.key, 
-    
+    super.key,
     this.initialData,
   });
 
@@ -21,9 +19,10 @@ class Stepdumaps extends StatefulWidget {
 }
 
 class MapsState extends State<Stepdumaps> {
-  late double latitude = 6.3676953;
-  late double longitude = 2.4252507;
-  late String locationAddress = "Cherchez une adresse";
+  late double latitude;
+  late double longitude;
+  
+  late String locationAddress;
   final TextEditingController searchController = TextEditingController();
   bool isLoading = false;
   List<Map<String, dynamic>> nearbyPlaces = [];
@@ -36,7 +35,16 @@ class MapsState extends State<Stepdumaps> {
   void initState() {
     super.initState();
     _mapController = MapController();
-   
+    // Initialiser avec les données du restaurant si disponibles
+    if (widget.initialData != null) {
+      latitude = widget.initialData!['latitude'] ?? 6.3676953;
+      longitude = widget.initialData!['longitude'] ?? 2.4252507;
+      locationAddress = widget.initialData!['name'] ?? "Cherchez une adresse";
+    } else {
+      latitude = 6.3676953;
+      longitude = 2.4252507;
+      locationAddress = "Cherchez une adresse";
+    }
   }
 
   @override
@@ -45,8 +53,6 @@ class MapsState extends State<Stepdumaps> {
     _debounceTimer?.cancel();
     super.dispose();
   }
-
-  
 
   Future<List<Map<String, dynamic>>> getAddress(String query) async {
     if (query.length < 3) return [];
@@ -80,7 +86,7 @@ class MapsState extends State<Stepdumaps> {
     }
   }
 
-    Future<void> getNearbyPlaces() async {
+  Future<void> getNearbyPlaces() async {
     setState(() {
       isLoading = true;
     });
@@ -181,29 +187,30 @@ class MapsState extends State<Stepdumaps> {
     }
   }
 
-   @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
       body: TextFormField(
-      readOnly: true,
-      decoration: InputDecoration(
-        labelText: locationAddress,
-        labelStyle: const TextStyle(color: Colors.blue),
-        suffixIcon: IconButton(
-          onPressed: () => showModal(context),
-          icon: const Icon(Icons.location_pin, color: Colors.red),
+        readOnly: true,
+        decoration: InputDecoration(
+          labelText: locationAddress,
+          labelStyle: const TextStyle(color: Colors.blue),
+          suffixIcon: IconButton(
+            onPressed: () => showModal(context),
+            icon: const Icon(Icons.location_pin, color: Colors.red),
+          ),
         ),
+        onTap: () => showModal(context),
       ),
-      onTap: () => showModal(context),
-    ),
     );
   }
 
   void showModal(BuildContext context) {
-    searchController.text = locationAddress != "Cliquer ici pour choisir une adresse"
-        ? locationAddress
-        : "";
+    searchController.text =
+        locationAddress != "Cliquer ici pour choisir une adresse"
+            ? locationAddress
+            : "";
 
     showModalBottomSheet(
       context: context,
@@ -237,7 +244,6 @@ class MapsState extends State<Stepdumaps> {
                             initialZoom: _zoomLevel,
                             onMapReady: () {
                               _mapInitialized = true;
-                             
                             },
                             onTap: (tapPosition, tapPoint) async {
                               setModalState(() {
@@ -248,7 +254,7 @@ class MapsState extends State<Stepdumaps> {
                               try {
                                 final response = await http.get(
                                   Uri.parse(
-                                    'https://nominatim.openstreetmap.org/reverse?format=json&lat=${tapPoint.latitude}&lon=${tapPoint.longitude}&zoom=18&addressdetails=1'),
+                                      'https://nominatim.openstreetmap.org/reverse?format=json&lat=${tapPoint.latitude}&lon=${tapPoint.longitude}&zoom=18&addressdetails=1'),
                                   headers: {'User-Agent': 'YourAppName'},
                                 );
 
@@ -261,26 +267,26 @@ class MapsState extends State<Stepdumaps> {
 
                                   _debounceTimer?.cancel();
                                   _debounceTimer = Timer(
-                                    const Duration(milliseconds: 500), 
-                                    () => getNearbyPlaces()
-                                  );
+                                      const Duration(milliseconds: 500),
+                                      () => getNearbyPlaces());
                                 } else {
                                   setModalState(() {
-                                    searchController.text = 
-                                      "Latitude: ${tapPoint.latitude}, Longitude: ${tapPoint.longitude}";
+                                    searchController.text =
+                                        "Latitude: ${tapPoint.latitude}, Longitude: ${tapPoint.longitude}";
                                   });
                                 }
                               } catch (e) {
                                 setModalState(() {
-                                  searchController.text = 
-                                    "Latitude: ${tapPoint.latitude}, Longitude: ${tapPoint.longitude}";
+                                  searchController.text =
+                                      "Latitude: ${tapPoint.latitude}, Longitude: ${tapPoint.longitude}";
                                 });
                               }
                             },
                           ),
                           children: [
                             TileLayer(
-                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.houeto.app',
                             ),
                             MarkerLayer(
@@ -316,7 +322,8 @@ class MapsState extends State<Stepdumaps> {
                                 return Marker(
                                   width: 40,
                                   height: 40,
-                                  point: LatLng(place['latitude'], place['longitude']),
+                                  point: LatLng(
+                                      place['latitude'], place['longitude']),
                                   child: getPlaceIcon(place['type']),
                                 );
                               }).toList(),
@@ -361,14 +368,13 @@ class MapsState extends State<Stepdumaps> {
                           latitude = suggestion['latitude'];
                           longitude = suggestion['longitude'];
                           searchController.text = suggestion['adresse'];
-                          _zoomLevel = 17; 
+                          _zoomLevel = 17;
                         });
-                        
-                        
+
                         _mapController.move(
-                          LatLng(suggestion['latitude'], suggestion['longitude']), 
-                          _zoomLevel
-                        );
+                            LatLng(suggestion['latitude'],
+                                suggestion['longitude']),
+                            _zoomLevel);
 
                         if (_debounceTimer?.isActive ?? false) {
                           _debounceTimer!.cancel();
@@ -395,7 +401,6 @@ class MapsState extends State<Stepdumaps> {
                       },
                     ),
                   ),
-
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -443,8 +448,6 @@ class MapsState extends State<Stepdumaps> {
                                   }
                                 });
 
-                               
-
                                 Navigator.pop(context);
                               },
                               style: ElevatedButton.styleFrom(
@@ -463,7 +466,6 @@ class MapsState extends State<Stepdumaps> {
                       ),
                     ),
                   ),
-
                   Positioned(
                     bottom: 90,
                     left: 0,

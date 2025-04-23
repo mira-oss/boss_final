@@ -1,13 +1,15 @@
-/*import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class PartnerDetailsPage extends StatefulWidget {
   final Map<String, dynamic> partner;
@@ -19,6 +21,7 @@ class PartnerDetailsPage extends StatefulWidget {
 class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTickerProviderStateMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final GlobalKey<ScaffoldMessengerState> _scaffoldKey = GlobalKey<ScaffoldMessengerState>();
   
   Map<String, List<Map<String, dynamic>>> _menusByCategory = {};
@@ -29,9 +32,11 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
   bool _isLoadingEvents = true;
   bool _isCartVisible = false;
   bool _isProcessingOrder = false;
+  bool _isSubmittingRating = false;
   
   String _errorMessage = '';
   double _totalAmount = 0;
+  double _userRating = 0;
   
   // Pour la navigation entre les onglets
   late TabController _tabController;
@@ -56,28 +61,39 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
     _tabController = TabController(length: 3, vsync: this);
     _fetchMenus();
     _fetchEvents();
+    _getUserRating();
     _setupMapData();
     _getUserLocation();
   }
   
   void _setupMapData() {
-    if (widget.partner['latitude'] != null && widget.partner['longitude'] != null) {
-      setState(() {
-        _partnerLat = double.parse(widget.partner['latitude'].toString());
-        _partnerLng = double.parse(widget.partner['longitude'].toString());
-        
-        // Créer un marqueur pour la position du partenaire
-        _markers.add(
-          Marker(
-            markerId: MarkerId('partner_${widget.partner['id']}'),
-            position: LatLng(_partnerLat!, _partnerLng!),
-            infoWindow: InfoWindow(
-              title: widget.partner['name'],
-              snippet: widget.partner['address'] ?? '',
-            ),
-          ),
-        );
-      });
+    // Vérifier si le partenaire a des coordonnées de localisation
+    if (widget.partner['localisation'] != null) {
+      try {
+        final dynamic locationData = widget.partner['localisation'];
+        if (locationData is Map<String, dynamic>) {
+          setState(() {
+            _partnerLat = locationData['lat'] != null ? double.parse(locationData['lat'].toString()) : null;
+            _partnerLng = locationData['long'] != null ? double.parse(locationData['long'].toString()) : null;
+            
+            if (_partnerLat != null && _partnerLng != null) {
+              // Créer un marqueur pour la position du partenaire
+              _markers.add(
+                Marker(
+                  markerId: MarkerId('partner_${widget.partner['id']}'),
+                  position: LatLng(_partnerLat!, _partnerLng!),
+                  infoWindow: InfoWindow(
+                    title: widget.partner['name'],
+                    snippet: widget.partner['address'] ?? '',
+                  ),
+                ),
+              );
+            }
+          });
+        }
+      } catch (e) {
+        debugPrint('Erreur lors de l\'extraction des coordonnées: $e');
+      }
     }
   }
   
@@ -140,6 +156,119 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
     super.dispose();
   }
 
+  Future<void> _getUserRating() async {
+    try {
+      // Vérifier si l'utilisateur est connecté
+      final user = _auth.currentUser;
+      if (user == null) return;
+      
+      final ratingDoc = await _firestore
+          .collection('ratings')
+          .where('userId', isEqualTo: user.uid)
+          .where('partnerId', isEqualTo: widget.partner['id'])
+          .limit(1)
+          .get();
+      
+      if (ratingDoc.docs.isNotEmpty) {
+        setState(() {
+          _userRating = (ratingDoc.docs.first.data()['rating'] as num).toDouble();
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération de la note: $e');
+    }
+  }
+  
+  Future<void> _submitRating(double rating) async {
+    // Vérifier si l'utilisateur est connecté
+    final user = _auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vous devez être connecté pour noter')),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isSubmittingRating = true;
+    });
+    
+    try {
+      // Vérifier si l'utilisateur a déjà noté ce partenaire
+      final ratingsQuery = await _firestore
+          .collection('ratings')
+          .where('userId', isEqualTo: user.uid)
+          .where('partnerId', isEqualTo: widget.partner['id'])
+          .limit(1)
+          .get();
+      
+      if (ratingsQuery.docs.isNotEmpty) {
+        // Mettre à jour la note existante
+        await _firestore.collection('ratings').doc(ratingsQuery.docs.first.id).update({
+          'rating': rating,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Créer une nouvelle note
+        await _firestore.collection('ratings').add({
+          'userId': user.uid,
+          'partnerId': widget.partner['id'],
+          'partnerName': widget.partner['name'],
+          'rating': rating,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      // Mettre à jour la note moyenne du partenaire
+      await _updatePartnerAverageRating(widget.partner['id']);
+      
+      setState(() {
+        _userRating = rating;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Merci pour votre note!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la notation: ${e.toString()}')),
+      );
+      debugPrint('Erreur lors de la notation: $e');
+    } finally {
+      setState(() {
+        _isSubmittingRating = false;
+      });
+    }
+  }
+  
+  Future<void> _updatePartnerAverageRating(String partnerId) async {
+    try {
+      // Récupérer toutes les notes pour ce partenaire
+      final ratingsQuery = await _firestore
+          .collection('ratings')
+          .where('partnerId', isEqualTo: partnerId)
+          .get();
+      
+      if (ratingsQuery.docs.isEmpty) return;
+      
+      // Calculer la note moyenne
+      double sum = 0;
+      for (var doc in ratingsQuery.docs) {
+        sum += (doc.data()['rating'] as num).toDouble();
+      }
+      double average = sum / ratingsQuery.docs.length;
+      
+      // Mettre à jour la note moyenne dans la collection partenaires
+      await _firestore.collection('partenaires').doc(partnerId).update({
+        'rating': average,
+        'ratingCount': ratingsQuery.docs.length,
+      });
+    } catch (e) {
+      debugPrint('Erreur lors de la mise à jour de la note moyenne: $e');
+    }
+  }
+  
   Future<void> _fetchMenus() async {
     try {
       final querySnapshot = await _firestore
@@ -155,7 +284,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       }
       Map<String, List<Map<String, dynamic>>> groupedMenus = {};
       for (var doc in querySnapshot.docs) {
-        final menu = doc.data() as Map<String, dynamic>;
+        final menu = doc.data();
         final category = menu['categorie'] ?? 'Autre';
         if (!groupedMenus.containsKey(category)) {
           groupedMenus[category] = [];
@@ -165,7 +294,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
           'name': menu['nom'] ?? 'Menu sans nom',
           'description': menu['description'] ?? '',
           'price': menu['prix']?.toString() ?? '0',
-          'imageUrl': menu['imageUrl'] ?? '',
+          'imageUrl': menu['photo'] ?? '', // Utiliser le champ 'photo' pour les images
           'quantity': 0,
         });
       }
@@ -192,7 +321,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       
       List<Map<String, dynamic>> events = [];
       for (var doc in querySnapshot.docs) {
-        final event = doc.data() as Map<String, dynamic>;
+        final event = doc.data();
         events.add({
           'id': doc.id,
           'title': event['title'] ?? 'Événement sans titre',
@@ -213,7 +342,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       debugPrint('Erreur de chargement des événements: $e');
     }
   }
-
+  
   void _addToCart(Map<String, dynamic> menu) {
     setState(() {
       // Chercher si l'article est déjà dans le panier
@@ -310,6 +439,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
           'name': item['name'],
           'price': item['price'],
           'quantity': item['quantity'],
+          'imageUrl': item['imageUrl'],
         };
       }).toList();
       
@@ -339,6 +469,9 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
         'createdAt': FieldValue.serverTimestamp(),
       });
       
+      // Envoyer une notification au partenaire
+      await _sendPartnerNotification(orderId);
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Commande envoyée avec succès!"),
@@ -364,7 +497,49 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       });
     }
   }
-
+  
+  Future<void> _sendPartnerNotification(String orderId) async {
+    try {
+      // Récupérer les informations du partenaire
+      final partnerDoc = await _firestore
+          .collection('partenaires')
+          .doc(widget.partner['id'])
+          .get();
+          
+      if (!partnerDoc.exists) return;
+      
+      final partnerData = partnerDoc.data();
+      if (partnerData == null) return;
+      
+      // Récupérer le token FCM du partenaire
+      String? fcmToken = partnerData['fcmToken'] as String?;
+      if (fcmToken == null || fcmToken.isEmpty) return;
+      
+      // Récupérer les informations de l'utilisateur
+      final user = _auth.currentUser;
+      if (user == null) return;
+      
+      // Créer la notification dans Firestore
+      await _firestore.collection('notifications').add({
+        'recipientId': widget.partner['id'],
+        'recipientType': 'partner',
+        'title': 'Nouvelle commande',
+        'body': 'Vous avez reçu une nouvelle commande de ${user.displayName ?? "un client"}',
+        'type': 'newOrder',
+        'data': {
+          'orderId': orderId,
+          'userId': user.uid,
+          'userName': user.displayName ?? "Client",
+        },
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      
+    } catch (e) {
+      debugPrint('Erreur lors de l\'envoi de la notification au partenaire: $e');
+    }
+  }
+  
   Future<void> _launchMaps(double lat, double lng, String label) async {
     final url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     if (await canLaunch(url)) {
@@ -375,7 +550,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       );
     }
   }
-
+  
   Future<void> _launchWhatsApp(String phone) async {
     final url = 'https://wa.me/$phone';
     if (await canLaunch(url)) {
@@ -386,7 +561,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       );
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -494,7 +669,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       ],
     );
   }
-
+  
   Widget _buildPartnerHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -517,18 +692,21 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
               ),
               const Spacer(),
               RatingBar.builder(
-                initialRating: widget.partner['rating']?.toDouble() ?? 4.5,
+                initialRating: _userRating > 0 ? _userRating : (widget.partner['rating']?.toDouble() ?? 4.5),
                 minRating: 1,
                 direction: Axis.horizontal,
                 allowHalfRating: true,
                 itemCount: 5,
                 itemSize: 20,
-                ignoreGestures: true,
+                ignoreGestures: false, // Permettre la notation
                 itemBuilder: (context, _) => Icon(
                   Icons.star,
                   color: _accentColor,
                 ),
-                onRatingUpdate: (rating) {},
+                onRatingUpdate: (rating) {
+                  // Enregistrer la note de l'utilisateur
+                  _submitRating(rating);
+                },
               ),
               const SizedBox(width: 5),
               Text(
@@ -537,6 +715,13 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
               ),
             ],
           ),
+          if (_isSubmittingRating) ...[
+            const SizedBox(height: 5),
+            Text(
+              'Enregistrement de votre notation...',
+              style: TextStyle(color: _primaryColor, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Text(
             widget.partner['description'] ?? 'Description non disponible',
@@ -572,7 +757,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       ),
     );
   }
-
+  
   Widget _buildMenuTab() {
     if (_errorMessage.isNotEmpty) {
       return Center(child: Text(_errorMessage));
@@ -612,7 +797,7 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
       ],
     );
   }
-
+  
   Widget _buildMenuCard(Map<String, dynamic> menu) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -683,13 +868,21 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
                             color: _accentColor,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () => _addToCart(menu),
-                          icon: const Icon(Icons.add_shopping_cart, size: 16),
-                          label: const Text('Ajouter'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: _primaryColor,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                        Material(
+                          borderRadius: BorderRadius.circular(20),
+                          color: _primaryColor,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () {
+                              _addToCart(menu);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              child: const Text(
+                                'Ajouter',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -704,94 +897,184 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
     );
   }
   
-  void _showMenuDetails(Map<String, dynamic> menu) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: menu['imageUrl']?.isNotEmpty == true
-                    ? Image.network(
-                        menu['imageUrl'],
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 200,
-                          width: double.infinity,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.restaurant, size: 50, color: Colors.grey),
-                        ),
-                      )
-                    : Container(
-                        height: 200,
-                        width: double.infinity,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.restaurant, size: 50, color: Colors.grey),
-                      ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                menu['name'],
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _textColor),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${menu['price']} FCFA',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _accentColor,
-                ),
-              ),
-              const SizedBox(height: 15),
-              Text(
-                menu['description'] ?? 'Pas de description disponible',
-                style: TextStyle(fontSize: 16, color: _textColor.withOpacity(0.8)),
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    _addToCart(menu);
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: const Text('Ajouter au panier'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildMenuPlaceholder() {
     return Container(
       width: 85,
       height: 85,
       color: Colors.grey[200],
-      child: const Center(child: Icon(Icons.restaurant, color: Colors.grey)),
+      child: Icon(Icons.restaurant, color: Colors.grey[400], size: 30),
+    );
+  }
+  
+  void _showMenuDetails(Map<String, dynamic> menu) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+              child: SizedBox(
+                height: 200,
+                child: menu['imageUrl']?.isNotEmpty == true
+                    ? CachedNetworkImage(
+                        imageUrl: menu['imageUrl'],
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[200],
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.restaurant, size: 80, color: Colors.grey),
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.restaurant, size: 80, color: Colors.grey),
+                      ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        menu['name'],
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${menu['price']} FCFA',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (menu['description']?.isNotEmpty == true) ...[
+                    Text(
+                      menu['description'],
+                      style: TextStyle(fontSize: 16, color: _textColor.withOpacity(0.8)),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  // Quantité selector
+                  StatefulBuilder(
+                    builder: (context, setState) {
+                      int quantity = 1;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Quantité',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                color: _primaryColor,
+                                onPressed: () {
+                                  if (quantity > 1) {
+                                    setState(() {
+                                      quantity--;
+                                    });
+                                  }
+                                },
+                              ),
+                              Text(
+                                '$quantity',
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                color: _primaryColor,
+                                onPressed: () {
+                                  setState(() {
+                                    quantity++;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accentColor,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () {
+                                // Ajouter plusieurs fois selon la quantité
+                                final cartItem = Map<String, dynamic>.from(menu);
+                                cartItem['quantity'] = quantity;
+                                
+                                // Ajouter au panier et fermer la modal
+                                Navigator.pop(context);
+                                
+                                setState(() {
+                                  // Chercher si l'article est déjà dans le panier
+                                  int existingIndex = _cartItems.indexWhere((item) => item['id'] == cartItem['id']);
+                                  
+                                  if (existingIndex != -1) {
+                                    // Remplacer l'article existant avec la nouvelle quantité
+                                    _cartItems[existingIndex]['quantity'] = quantity;
+                                  } else {
+                                    // Ajouter le nouvel article au panier
+                                    _cartItems.add(cartItem);
+                                  }
+                                  
+                                  // Mettre à jour le montant total et afficher le panier
+                                  _calculateTotal();
+                                  _isCartVisible = true;
+                                });
+                              },
+                              child: const Text(
+                                'Ajouter au panier',
+                                style: TextStyle(
+                                  fontSize: 16, 
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
   
@@ -805,11 +1088,15 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_busy, size: 60, color: Colors.grey[400]),
-            const SizedBox(height: 10),
+            Icon(Icons.event_busy, size: 80, color: Colors.grey[400]),
+            const SizedBox(height: 16),
             Text(
               'Aucun événement à venir',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 18, 
+                color: _textColor.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -823,57 +1110,62 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
         final event = _events[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
-          elevation: 1,
-          shadowColor: Colors.black12,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
+          shadowColor: Colors.black12,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                child: event['imageUrl']?.isNotEmpty == true
-                    ? Image.network(
-                        event['imageUrl'],
-                        height: 150,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 150,
-                          width: double.infinity,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.event, size: 50, color: Colors.grey),
-                        ),
-                      )
-                    : Container(
-                        height: 150,
-                        width: double.infinity,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.event, size: 50, color: Colors.grey),
-                      ),
-              ),
+              if (event['imageUrl']?.isNotEmpty == true)
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                  child: CachedNetworkImage(
+                    imageUrl: event['imageUrl'],
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      height: 180,
+                      color: Colors.grey[200],
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      height: 180,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.event, size: 60, color: Colors.grey),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        DateFormat('dd MMM yyyy - HH:mm').format(event['date']),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _primaryColor,
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            DateFormat('dd MMM yyyy • HH:mm').format(event['date']),
+                            style: TextStyle(
+                              color: _primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Text(
                       event['title'],
                       style: TextStyle(
@@ -885,364 +1177,379 @@ class _PartnerDetailsPageState extends State<PartnerDetailsPage> with SingleTick
                     const SizedBox(height: 8),
                     Text(
                       event['description'],
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _textColor.withOpacity(0.7),
-                      ),
+                      style: TextStyle(fontSize: 15, color: _textColor.withOpacity(0.8)),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.calendar_today, size: 18),
+                          label: const Text('Ajouter au calendrier'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
                           onPressed: () {
-                            // Logique pour ajouter à l'agenda
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-  content: Text('Événement ajouté à votre agenda'),
-),
-);
-},
-icon: const Icon(Icons.calendar_today),
-label: const Text('Ajouter à l\'agenda'),
-style: OutlinedButton.styleFrom(
-  foregroundColor: _primaryColor,
-),
-),
-],
-),
-],
-),
-),
-],
-),
-);
-},
-);
-}
-
-Widget _buildInfoTab() {
-  // Vérifier si les coordonnées du partenaire sont disponibles
-  bool hasLocation = _partnerLat != null && _partnerLng != null;
+                              const SnackBar(content: Text('Fonctionnalité à venir')),
+                            );
+                          },
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.share, size: 18),
+                          label: const Text('Partager'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: _primaryColor,
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Fonctionnalité à venir')),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
   
-  return ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      Card(
-        margin: const EdgeInsets.only(bottom: 16),
-        elevation: 1,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+  Widget _buildInfoTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Heures d'ouverture
+        _buildInfoSection(
+          title: 'Horaires',
+          icon: Icons.access_time,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Coordonnées',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _textColor,
-                ),
-              ),
-              const SizedBox(height: 15),
-              
-              // Adresse
-              if (widget.partner['address']?.isNotEmpty == true) ...[
-                _buildInfoRow(
-                  Icons.location_on,
-                  widget.partner['address'],
-                  onTap: hasLocation
-                      ? () => _launchMaps(_partnerLat!, _partnerLng!, widget.partner['name'])
-                      : null,
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Téléphone
-              if (widget.partner['phone']?.isNotEmpty == true) ...[
-                _buildInfoRow(
-                  Icons.phone,
+              _buildHourRow('Lundi - Vendredi', '08:00 - 22:00'),
+              _buildHourRow('Samedi', '09:00 - 23:00'),
+              _buildHourRow('Dimanche', '10:00 - 20:00'),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Contact
+        _buildInfoSection(
+          title: 'Contact',
+          icon: Icons.contact_phone,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.partner['phone'] != null) ...[
+                _buildContactRow(
+                  Icons.phone, 
                   widget.partner['phone'],
-                  onTap: () async {
-                    final url = 'tel:${widget.partner['phone']}';
-                    if (await canLaunch(url)) {
-                      await launch(url);
-                    }
-                  },
+                  onTap: () => launch('tel:${widget.partner['phone']}'),
                 ),
-                const SizedBox(height: 12),
               ],
-              
-              // WhatsApp
-              if (widget.partner['whatsapp']?.isNotEmpty == true) ...[
-                _buildInfoRow(
-                  Icons.telegram,
+              if (widget.partner['email'] != null) ...[
+                _buildContactRow(
+                  Icons.email, 
+                  widget.partner['email'],
+                  onTap: () => launch('mailto:${widget.partner['email']}'),
+                ),
+              ],
+              if (widget.partner['whatsapp'] != null) ...[
+                _buildContactRow(
+                  Icons.phone_iphone, 
                   'WhatsApp',
                   onTap: () => _launchWhatsApp(widget.partner['whatsapp']),
                 ),
-                const SizedBox(height: 12),
               ],
-              
-              // Email
-              if (widget.partner['email']?.isNotEmpty == true) ...[
-                _buildInfoRow(
-                  Icons.email,
-                  widget.partner['email'],
-                  onTap: () async {
-                    final url = 'mailto:${widget.partner['email']}';
-                    if (await canLaunch(url)) {
-                      await launch(url);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Site web
-              if (widget.partner['website']?.isNotEmpty == true) ...[
-                _buildInfoRow(
-                  Icons.language,
+              if (widget.partner['website'] != null) ...[
+                _buildContactRow(
+                  Icons.language, 
                   widget.partner['website'],
-                  onTap: () async {
-                    if (await canLaunch(widget.partner['website'])) {
-                      await launch(widget.partner['website']);
-                    }
-                  },
+                  onTap: () => launch(widget.partner['website']),
                 ),
               ],
             ],
           ),
         ),
-      ),
-      
-      // Horaires
-      if (widget.partner['schedules'] != null) ...[
-        Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: 1,
-          shadowColor: Colors.black12,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Horaires d\'ouverture',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _textColor,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                
-                // Afficher les horaires
-                _buildSchedulesList(widget.partner['schedules']),
-              ],
-            ),
-          ),
-        ),
-      ],
-      
-      // Carte
-      if (hasLocation)
-        Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: 1,
-          shadowColor: Colors.black12,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+        
+        const SizedBox(height: 20),
+        
+        // Adresse avec carte
+        _buildInfoSection(
+          title: 'Localisation',
+          icon: Icons.location_on,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'Localisation',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _textColor,
-                  ),
+              if (widget.partner['address'] != null) ...[
+                Text(
+                  widget.partner['address'],
+                  style: TextStyle(fontSize: 15, color: _textColor.withOpacity(0.8)),
                 ),
-              ),
+                const SizedBox(height: 12),
+              ],
               
               // Carte Google Maps
-              Container(
-                height: 200,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: _isLoadingLocation
-                      ? const Center(child: CircularProgressIndicator())
-                      : GoogleMap(
-                          initialCameraPosition: CameraPosition(
-                            target: LatLng(_partnerLat!, _partnerLng!),
-                            zoom: 15,
-                          ),
-                          markers: _markers,
-                          myLocationEnabled: _userPosition != null,
-                          myLocationButtonEnabled: true,
-                          onMapCreated: (controller) {
-                            _mapController = controller;
-                          },
-                          zoomControlsEnabled: true,
-                        ),
+              if (_partnerLat != null && _partnerLng != null) ...[
+                SizedBox(
+                  height: 200,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(_partnerLat!, _partnerLng!),
+                        zoom: 14,
+                      ),
+                      markers: _markers,
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                      },
+                      zoomControlsEnabled: false,
+                      mapToolbarEnabled: false,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: false,
+                    ),
+                  ),
                 ),
-              ),
-              
-              // Bouton pour ouvrir dans Google Maps
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: ElevatedButton.icon(
-                    onPressed: () => _launchMaps(_partnerLat!, _partnerLng!, widget.partner['name']),
-                    icon: const Icon(Icons.directions),
-                    label: const Text('Itinéraire'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.directions),
+                        label: const Text('Itinéraire'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: _partnerLat != null && _partnerLng != null
+                            ? () => _launchMaps(_partnerLat!, _partnerLng!, widget.partner['name'] ?? '')
+                            : null,
                       ),
                     ),
+                    if (_mapController != null) ...[
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.my_location),
+                        onPressed: _isLoadingLocation
+                            ? null
+                            : () {
+                                if (_userPosition != null && _mapController != null) {
+                                  _mapController!.animateCamera(
+                                    CameraUpdate.newLatLngZoom(
+                                      LatLng(_userPosition!.latitude, _userPosition!.longitude),
+                                      15,
+                                    ),
+                                  );
+                                } else {
+                                  _getUserLocation();
+                                }
+                              },
+                        tooltip: 'Ma position',
+                        color: _primaryColor,
+                      ),
+                    ],
+                  ],
+                ),
+              ] else ...[
+                Text(
+                  'Localisation non disponible',
+                  style: TextStyle(color: _textColor.withOpacity(0.6), fontStyle: FontStyle.italic),
+                ),
+              ],
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Moyens de paiement acceptés
+        _buildInfoSection(
+          title: 'Moyens de paiement acceptés',
+          icon: Icons.payment,
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildPaymentMethod('Espèces', Icons.money),
+              _buildPaymentMethod('Carte bancaire', Icons.credit_card),
+              _buildPaymentMethod('Mobile Money', Icons.phone_android),
+              _buildPaymentMethod('PayPal', Icons.payment),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+  
+  Widget _buildHourRow(String day, String hours) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            day,
+            style: TextStyle(
+              fontSize: 15,
+              color: _textColor.withOpacity(0.8),
+            ),
+          ),
+          Text(
+            hours,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: _textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildContactRow(IconData icon, String text, {VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: _primaryColor,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: onTap != null ? _primaryColor : _textColor.withOpacity(0.8),
+                    decoration: onTap != null ? TextDecoration.underline : null,
                   ),
                 ),
               ),
             ],
           ),
         ),
-    ],
-  );
-}
-
-Widget _buildInfoRow(IconData icon, String text, {Function()? onTap}) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(8),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: _primaryColor, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 15,
-                color: onTap != null ? _primaryColor : _textColor,
-                decoration: onTap != null ? TextDecoration.underline : TextDecoration.none,
-              ),
-            ),
-          ),
-        ],
       ),
-    ),
-  );
-}
-
-Widget _buildSchedulesList(Map<String, dynamic> schedules) {
-  final days = [
-    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
-  ];
+    );
+  }
   
-  final dayNames = {
-    'monday': 'Lundi',
-    'tuesday': 'Mardi',
-    'wednesday': 'Mercredi',
-    'thursday': 'Jeudi',
-    'friday': 'Vendredi',
-    'saturday': 'Samedi',
-    'sunday': 'Dimanche',
-  };
-  
-  return Column(
-    children: days.map((day) {
-      final schedule = schedules[day];
-      String timeText = 'Fermé';
-      
-      if (schedule != null && schedule['isOpen'] == true) {
-        final open = schedule['openTime'] ?? '08:00';
-        final close = schedule['closeTime'] ?? '18:00';
-        timeText = '$open - $close';
-      }
-      
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildInfoSection({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Card(
+      elevation: 1,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              dayNames[day] ?? day,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: _textColor,
-              ),
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  color: _primaryColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: _textColor,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              timeText,
-              style: TextStyle(
-                fontSize: 15,
-                color: timeText == 'Fermé' ? Colors.red[400] : _textColor,
-              ),
-            ),
+            const Divider(height: 24),
+            child,
           ],
         ),
-      );
-    }).toList(),
-  );
-}
-
-Widget _buildCartOverlay() {
-  return Positioned(
-    bottom: 0,
-    left: 0,
-    right: 0,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: MediaQuery.of(context).size.height * 0.6,
+      ),
+    );
+  }
+  
+  Widget _buildPaymentMethod(String name, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            spreadRadius: 2,
+        color: _primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: _primaryColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            name,
+            style: TextStyle(
+              color: _primaryColor,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildCartOverlay() {
+    return Container(
+      color: Colors.black54,
       child: Column(
         children: [
           // En-tête du panier
           Container(
+            color: _primaryColor,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: _primaryColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Icon(Icons.shopping_cart, color: Colors.white),
+                const SizedBox(width: 12),
+                const Text(
                   'Votre panier',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  style: TextStyle(
                     color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
+                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () {
@@ -1257,192 +1564,247 @@ Widget _buildCartOverlay() {
           
           // Liste des articles
           Expanded(
-            child: _cartItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.grey[400]),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Votre panier est vide',
-                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _cartItems.length,
-                    separatorBuilder: (context, index) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final item = _cartItems[index];
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+            child: Container(
+              color: Colors.white,
+              child: _cartItems.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Image miniature
-                          if (item['imageUrl']?.isNotEmpty == true)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CachedNetworkImage(
-                                imageUrl: item['imageUrl'],
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  width: 50,
-                                  height: 50,
-                                  color: Colors.grey[200],
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  width: 50,
-                                  height: 50,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.restaurant, color: Colors.grey),
-                                ),
-                              ),
-                            )
-                          else
-                            Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.restaurant, color: Colors.grey),
-                            ),
-                            
-                          const SizedBox(width: 12),
-                          
-                          // Nom et prix
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['name'],
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: _textColor,
-                                  ),
-                                ),
-                                Text(
-                                  '${item['price']} FCFA',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: _accentColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                          Icon(
+                            Icons.shopping_cart_outlined,
+                            size: 80,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Votre panier est vide',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: _textColor.withOpacity(0.6),
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          
-                          // Contrôle de quantité
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline),
-                                onPressed: () => _updateQuantity(index, (item['quantity'] as int) - 1),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _isCartVisible = false;
+                                _tabController.animateTo(0); // Revenir à l'onglet menu
+                              });
+                            },
+                            child: Text(
+                              'Parcourir le menu',
+                              style: TextStyle(
                                 color: _primaryColor,
-                                iconSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
-                              Text(
-                                '${item['quantity']}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline),
-                                onPressed: () => _updateQuantity(index, (item['quantity'] as int) + 1),
-                                color: _primaryColor,
-                                iconSize: 20,
-                              ),
-                            ],
+                            ),
                           ),
                         ],
-                      );
-                    },
-                  ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _cartItems.length,
+                      itemBuilder: (context, index) {
+                        return _buildCartItem(_cartItems[index], index);
+                      },
+                    ),
+            ),
           ),
           
-          // Pied de page avec le total et le bouton de commande
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+          // Pied du panier (total + bouton commander)
+          if (_cartItems.isNotEmpty)
+            Container(
               color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
-                  spreadRadius: 1,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${_totalAmount.toStringAsFixed(0)} FCFA',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _accentColor,
+                      Text(
+                        '${_totalAmount.toStringAsFixed(0)} FCFA',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _accentColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _cartItems.isEmpty ? null : _processOrder,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: _isProcessingOrder
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Valider la commande',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentColor,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _isProcessingOrder ? null : _processOrder,
+                      child: _isProcessingOrder
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Passer la commande',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
-    ),
-  );
+    );
+  }
+  
+  Widget _buildCartItem(Map<String, dynamic> item, int index) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (item['imageUrl']?.isNotEmpty == true)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: item['imageUrl'],
+                  width: 70,
+                  height: 70,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    width: 70,
+                    height: 70,
+                    color: Colors.grey[200],
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    width: 70,
+                    height: 70,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.restaurant, color: Colors.grey),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.restaurant, color: Colors.grey),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['name'],
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(double.tryParse(item['price']) ?? 0).toStringAsFixed(0)} FCFA',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _accentColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Row(
+                          children: [
+                            InkWell(
+                              onTap: () => _updateQuantity(index, (item['quantity'] ?? 1) - 1),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.remove,
+                                  size: 16,
+                                  color: _textColor,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: Text(
+                                '${item['quantity'] ?? 1}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _textColor,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => _updateQuantity(index, (item['quantity'] ?? 1) + 1),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.add,
+                                  size: 16,
+                                  color: _textColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () => _removeFromCart(index),
+                        tooltip: 'Supprimer',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
-}*/
