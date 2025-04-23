@@ -63,13 +63,23 @@ class OpenAIService {
     required List<String> userMoods,
   }) async {
     try {
-      // Récupérer les restaurants partenaires correspondant aux moods
       final matchingPartners = await fetchPartnersByMoods(userMoods);
-
+      
       if (matchingPartners.isEmpty) {
-        throw Exception(
-            'Aucun restaurant partenaire ne correspond à vos critères.');
+        throw Exception('Aucun restaurant partenaire ne correspond à vos critères.');
       }
+
+      // Encodage des données des partenaires pour éviter les problèmes de caractères spéciaux
+      final encodedPartners = matchingPartners.map((partner) => {
+        'id': partner['id'],
+        'nom': _encodeSpecialChars(partner['nom'] ?? ''),
+        'email': partner['email'],
+        'phone': partner['phone'],
+        'latitude': partner['latitude'],
+        'longitude': partner['longitude'],
+        'moods': partner['moods'],
+        'statut': partner['statut'],
+      }).toList();
 
       final response = await http.post(
         Uri.parse('$_baseUrl/chat/completions'),
@@ -84,7 +94,7 @@ class OpenAIService {
               'role': 'system',
               'content': '''
 Tu es un assistant spécialisé dans la création d'itinéraires gastronomiques.
-Utilise UNIQUEMENT les restaurants partenaires suivants pour créer exactement 2 parcours différents : ${jsonEncode(matchingPartners)}
+Utilise UNIQUEMENT les restaurants partenaires suivants pour créer exactement 2 parcours différents : ${jsonEncode(encodedPartners)}
 
 Instructions importantes:
 1. Crée EXACTEMENT 2 parcours différents avec des restaurants différents
@@ -118,7 +128,10 @@ Format de réponse EXACT:
   ]
 }'''
             },
-            {'role': 'user', 'content': userPrompt}
+            {
+              'role': 'user',
+              'content': _encodeSpecialChars(userPrompt)
+            }
           ],
           'temperature': 0.7,
         }),
@@ -128,7 +141,9 @@ Format de réponse EXACT:
         final jsonResponse = jsonDecode(response.body);
         final content = jsonResponse['choices'][0]['message']['content'];
         final parsedResponse = jsonDecode(content);
-        return parsedResponse;
+        
+        // Décodage des caractères spéciaux dans la réponse
+        return _decodeSpecialCharsInResponse(parsedResponse);
       } else {
         throw Exception('Erreur API: ${response.statusCode}');
       }
@@ -136,6 +151,75 @@ Format de réponse EXACT:
       print('Erreur lors de la génération du parcours: $e');
       throw Exception('Impossible de générer un parcours: $e');
     }
+  }
+
+  // Fonction pour encoder les caractères spéciaux
+  static String _encodeSpecialChars(String text) {
+    return text
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ô', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'[^\x20-\x7E]'), ''); // Supprime les caractères non ASCII
+  }
+
+  // Fonction pour décoder la réponse et restaurer les caractères spéciaux
+  static Map<String, dynamic> _decodeSpecialCharsInResponse(Map<String, dynamic> response) {
+    if (response['parcours'] is List) {
+      final parcours = response['parcours'] as List;
+      for (var i = 0; i < parcours.length; i++) {
+        if (parcours[i]['titre'] is String) {
+          parcours[i]['titre'] = _restoreSpecialChars(parcours[i]['titre']);
+        }
+        if (parcours[i]['description'] is String) {
+          parcours[i]['description'] = _restoreSpecialChars(parcours[i]['description']);
+        }
+        if (parcours[i]['etapes'] is List) {
+          for (var etape in parcours[i]['etapes']) {
+            if (etape['nom'] is String) {
+              etape['nom'] = _restoreSpecialChars(etape['nom']);
+            }
+            if (etape['description'] is String) {
+              etape['description'] = _restoreSpecialChars(etape['description']);
+            }
+          }
+        }
+      }
+    }
+    return response;
+  }
+
+  // Fonction pour restaurer les caractères spéciaux courants en français
+  static String _restoreSpecialChars(String text) {
+    // Dictionnaire de remplacement pour les cas courants
+    final Map<String, String> replacements = {
+      'cafe': 'café',
+      'theatre': 'théâtre',
+      'crepe': 'crêpe',
+      'patisserie': 'pâtisserie',
+      'boulangerie': 'boulangerie',
+      'epicerie': 'épicerie',
+      'marche': 'marché',
+      'hotel': 'hôtel',
+      // Ajoutez d'autres remplacements courants si nécessaire
+    };
+
+    String result = text;
+    replacements.forEach((key, value) {
+      result = result.replaceAll(RegExp(key, caseSensitive: false), value);
+    });
+    return result;
   }
 
   static Future<String> getAIResponse(String userPrompt) async {

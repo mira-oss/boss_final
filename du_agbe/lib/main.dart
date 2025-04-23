@@ -2,6 +2,7 @@ import 'package:du_agbe/connexion.dart';
 import 'package:du_agbe/firebase_options.dart';
 import 'package:du_agbe/homePage.dart';
 import 'package:du_agbe/map.dart';
+import 'package:du_agbe/paiement.dart';
 import 'package:du_agbe/profil.dart';
 import 'package:du_agbe/themeNotifier.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -79,6 +80,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final pages =  [
     Homepage(),
     Stepdumaps(),
+    PaymentScreen(),
     Profil(),
   ];
   
@@ -136,6 +138,12 @@ class _MyHomePageState extends State<MyHomePage> {
             BarItem(
               icon: Icons.home_rounded,
               title: 'Maps',
+              activeColor: Theme.of(context).colorScheme.primary,
+              inactiveColor: Colors.grey.shade400,
+            ),
+            BarItem(
+              icon: Icons.home_rounded,
+              title: 'Paiement',
               activeColor: Theme.of(context).colorScheme.primary,
               inactiveColor: Colors.grey.shade400,
             ),

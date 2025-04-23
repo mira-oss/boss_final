@@ -16,11 +16,18 @@ class EventDetailsPage extends StatefulWidget {
 class _EventDetailsPageState extends State<EventDetailsPage> {
   bool _hasTickets = false;
   bool _isLoading = true;
+  int _capacity = 500; // Valeur par défaut
 
   @override
   void initState() {
     super.initState();
+    _initializeData();
     _checkTicketAvailability();
+  }
+
+  void _initializeData() {
+    // Initialise la capacité avec la valeur de l'événement ou 500 par défaut
+    _capacity = widget.event['maxCapacity']?.toInt() ?? 500;
   }
 
   Future<void> _checkTicketAvailability() async {
@@ -241,9 +248,7 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    widget.event['maxCapacity'] != null
-                        ? '${widget.event['maxCapacity']} places disponibles'
-                        : 'Information non disponible',
+                    '$_capacity places disponibles',
                     style: const TextStyle(fontSize: 16),
                   ),
                   const SizedBox(height: 30),
