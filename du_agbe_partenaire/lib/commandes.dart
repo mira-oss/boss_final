@@ -242,7 +242,7 @@ class CommandeService {
     }
   }
 
-  // Récupérer toutes les commandes
+  // Récupérer toutes les commandes - CORRIGÉ pour gérer les erreurs de type
   Stream<List<Map<String, dynamic>>> getCommandes() {
     return _firestore
         .collection('commandes')
@@ -251,6 +251,28 @@ class CommandeService {
         .map((snapshot) {
           return snapshot.docs.map((doc) {
             Map<String, dynamic> data = doc.data();
+            // Vérifier que le client est bien un Map
+            if (data['client'] is String) {
+              // Si client est une chaîne, convertir en Map
+              data['client'] = {
+                'nom': data['client'],
+                'prenom': '',
+                'imageUrl': 'https://randomuser.me/api/portraits/lego/1.jpg',
+              };
+            } else if (data['client'] == null) {
+              // Si client est null, créer un client par défaut
+              data['client'] = {
+                'nom': 'Client',
+                'prenom': 'Inconnu',
+                'imageUrl': 'https://randomuser.me/api/portraits/lego/1.jpg',
+              };
+            }
+
+            // Vérifier que items est bien une liste
+            if (data['items'] == null) {
+              data['items'] = [];
+            }
+
             // Ajouter l'ID du document aux données
             data['id'] = doc.id;
             return data;
@@ -263,6 +285,26 @@ class CommandeService {
     return _firestore.collection('commandes').doc(commandeId).update({
       'status': newStatus,
     });
+  }
+
+  // Créer une nouvelle commande - méthode d'exemple
+  Future<void> creerNouvelleCommande(Map<String, dynamic> commandeData) async {
+    try {
+      // S'assurer que la structure des données est correcte
+      if (commandeData['client'] is String) {
+        String clientNom = commandeData['client'];
+        commandeData['client'] = {
+          'nom': clientNom,
+          'prenom': '',
+          'imageUrl': 'https://randomuser.me/api/portraits/lego/1.jpg',
+        };
+      }
+
+      await _firestore.collection('commandes').add(commandeData);
+    } catch (e) {
+      print('Erreur lors de la création de la commande: $e');
+      throw e;
+    }
   }
 }
 
@@ -599,6 +641,19 @@ class _CommandesPageState extends State<CommandesPage>
           ),
         ],
       ),
+      // Ajout d'un FAB pour créer une nouvelle commande
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NouvelleCommandePage(),
+            ),
+          );
+        },
+        backgroundColor: const Color(0xFF1a73e8),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
@@ -630,7 +685,17 @@ class _CommandesPageState extends State<CommandesPage>
       itemCount: commandes.length,
       itemBuilder: (context, index) {
         final commande = commandes[index];
-        final client = commande['client'] as Map<String, dynamic>;
+
+        // CORRECTION: Vérifier que client est bien un Map avant de l'utiliser
+        final client =
+            commande['client'] is Map
+                ? commande['client'] as Map<String, dynamic>
+                : {
+                  'nom': commande['client'] ?? 'Client',
+                  'prenom': '',
+                  'imageUrl': 'https://randomuser.me/api/portraits/lego/1.jpg',
+                };
+
         final DateTime commandeDate = (commande['date'] as Timestamp).toDate();
 
         return Card(
@@ -638,11 +703,15 @@ class _CommandesPageState extends State<CommandesPage>
           elevation: 2,
           child: ExpansionTile(
             leading: CircleAvatar(
-              backgroundImage: NetworkImage(client['imageUrl']),
+              // CORRECTION: Vérifier que l'imageUrl existe
+              backgroundImage: NetworkImage(
+                client['imageUrl'] ??
+                    'https://randomuser.me/api/portraits/lego/1.jpg',
+              ),
               radius: 24,
             ),
             title: Text(
-              '${client['prenom']} ${client['nom']}',
+              '${client['prenom'] ?? ''} ${client['nom'] ?? 'Client'}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             subtitle: Column(
@@ -654,7 +723,7 @@ class _CommandesPageState extends State<CommandesPage>
                     const Icon(Icons.access_time, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
                     Text(
-                      '${commande['heure']} - ${formatDate.format(commandeDate).split(' ')[0]}',
+                      '${commande['heure'] ?? ''} - ${formatDate.format(commandeDate).split(' ')[0]}',
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ],
@@ -680,7 +749,7 @@ class _CommandesPageState extends State<CommandesPage>
                     ),
                   ),
                   child: Text(
-                    commande['status'],
+                    commande['status'] ?? 'Inconnu',
                     style: TextStyle(
                       fontSize: 12,
                       color:
@@ -694,7 +763,7 @@ class _CommandesPageState extends State<CommandesPage>
               ],
             ),
             trailing: Text(
-              formatCurrency.format(commande['montant'] / 100),
+              formatCurrency.format((commande['montant'] ?? 0) / 100),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             children: [
@@ -712,27 +781,33 @@ class _CommandesPageState extends State<CommandesPage>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Liste des articles
-                    ...(commande['items'] as List).map<Widget>((item) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${item['quantite']}x ${item['nom']}',
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              formatCurrency.format(
-                                (item['prix'] * item['quantite']) / 100,
+                    // CORRECTION: Vérifier que items est une liste avant d'itérer dessus
+                    if (commande['items'] != null && commande['items'] is List)
+                      ...(commande['items'] as List).map<Widget>((item) {
+                        // S'assurer que item est un Map
+                        if (item is! Map) return const SizedBox.shrink();
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${item['quantite'] ?? 1}x ${item['nom'] ?? 'Article'}',
+                                style: const TextStyle(fontSize: 14),
                               ),
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                              Text(
+                                formatCurrency.format(
+                                  ((item['prix'] ?? 0) *
+                                          (item['quantite'] ?? 1)) /
+                                      100,
+                                ),
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     const Divider(),
                     // Total
                     Padding(
@@ -748,7 +823,9 @@ class _CommandesPageState extends State<CommandesPage>
                             ),
                           ),
                           Text(
-                            formatCurrency.format(commande['montant'] / 100),
+                            formatCurrency.format(
+                              (commande['montant'] ?? 0) / 100,
+                            ),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -760,41 +837,44 @@ class _CommandesPageState extends State<CommandesPage>
                     ),
                     const SizedBox(height: 16),
                     // Informations client
+                    // Informations client
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.grey[100],
+                        color: Colors.grey[50],
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CircleAvatar(
-                            backgroundImage: NetworkImage(client['imageUrl']),
-                            radius: 30,
+                          const Text(
+                            'Informations client',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 8),
+                          Row(
                             children: [
-                              Text(
-                                '${client['prenom']} ${client['nom']}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(
+                                  client['imageUrl'] ??
+                                      'https://randomuser.me/api/portraits/lego/1.jpg',
                                 ),
+                                radius: 20,
                               ),
-                              const SizedBox(height: 4),
-                              Row(
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(
-                                    Icons.phone,
-                                    size: 16,
-                                    color: Colors.grey,
+                                  Text(
+                                    '${client['prenom'] ?? ''} ${client['nom'] ?? 'Client'}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'Client régulier',
-                                    style: TextStyle(color: Colors.grey),
+                                  Text(
+                                    'Commande #${commande['id'].toString().substring(0, 8)}',
+                                    style: TextStyle(color: Colors.grey[600]),
                                   ),
                                 ],
                               ),
@@ -804,63 +884,33 @@ class _CommandesPageState extends State<CommandesPage>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Actions
+                    // Boutons d'action
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         if (commande['status'] == 'En préparation')
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.check_circle),
-                            label: const Text('Terminer'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                            ),
+                          ElevatedButton(
                             onPressed: () {
                               _updateCommandeStatus(commande['id'], 'Terminée');
                             },
-                          ),
-                        if (commande['status'] == 'Terminée')
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('En préparation'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber,
-                              foregroundColor: Colors.white,
+                              backgroundColor: const Color(0xFF1a73e8),
                             ),
+                            child: const Text('Marquer comme terminée'),
+                          )
+                        else if (commande['status'] == 'Terminée')
+                          ElevatedButton(
                             onPressed: () {
                               _updateCommandeStatus(
                                 commande['id'],
                                 'En préparation',
                               );
                             },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber,
+                            ),
+                            child: const Text('Remettre en préparation'),
                           ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.print),
-                              tooltip: 'Imprimer la facture',
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Impression demandée'),
-                                  ),
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.share),
-                              tooltip: 'Partager la commande',
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Partage non disponible'),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ],
@@ -874,11 +924,11 @@ class _CommandesPageState extends State<CommandesPage>
   }
 }
 
-// Delegate pour la recherche de commandes
+// Classe pour la recherche
 class CommandeSearchDelegate extends SearchDelegate<String> {
-  final _CommandesPageState _commandesPageState;
+  final _CommandesPageState _parentState;
 
-  CommandeSearchDelegate(this._commandesPageState);
+  CommandeSearchDelegate(this._parentState);
 
   @override
   List<Widget> buildActions(BuildContext context) {
@@ -904,31 +954,20 @@ class CommandeSearchDelegate extends SearchDelegate<String> {
 
   @override
   Widget buildResults(BuildContext context) {
-    _commandesPageState._searchQuery = query;
-    return Container(); // Retourne un widget vide car nous reviendrons à l'écran principal
+    _parentState._searchQuery = query;
+    return Container(); // On ferme immédiatement
   }
 
   @override
   Widget buildSuggestions(BuildContext context) {
     if (query.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.search, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'Recherchez par nom ou ID de commande',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
+      return const Center(
+        child: Text('Recherchez par nom de client ou ID de commande'),
       );
     }
 
-    // Filtrer les commandes selon la requête
     final suggestions =
-        _commandesPageState._allCommandes.where((commande) {
+        _parentState._allCommandes.where((commande) {
           final client = commande['client'] as Map<String, dynamic>;
           return commande['id'].toString().toLowerCase().contains(
                 query.toLowerCase(),
@@ -941,22 +980,6 @@ class CommandeSearchDelegate extends SearchDelegate<String> {
               );
         }).toList();
 
-    if (suggestions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              'Aucun résultat pour "$query"',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
     return ListView.builder(
       itemCount: suggestions.length,
       itemBuilder: (context, index) {
@@ -965,26 +988,17 @@ class CommandeSearchDelegate extends SearchDelegate<String> {
 
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage: NetworkImage(client['imageUrl']),
+            backgroundImage: NetworkImage(
+              client['imageUrl'] ??
+                  'https://randomuser.me/api/portraits/lego/1.jpg',
+            ),
           ),
           title: Text('${client['prenom']} ${client['nom']}'),
           subtitle: Text(
-            'ID: ${commande['id']} - Statut: ${commande['status']}',
-            style: TextStyle(
-              color:
-                  commande['status'] == 'En préparation'
-                      ? Colors.amber[800]
-                      : Colors.green[800],
-            ),
-          ),
-          trailing: Text(
-            _commandesPageState.formatCurrency.format(
-              commande['montant'] / 100,
-            ),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            'Commande #${commande['id'].toString().substring(0, 8)}',
           ),
           onTap: () {
-            _commandesPageState._searchQuery = query;
+            _parentState._searchQuery = query;
             close(context, query);
           },
         );
@@ -993,7 +1007,7 @@ class CommandeSearchDelegate extends SearchDelegate<String> {
   }
 }
 
-// Classe pour créer une nouvelle commande
+// Page pour créer une nouvelle commande
 class NouvelleCommandePage extends StatefulWidget {
   const NouvelleCommandePage({Key? key}) : super(key: key);
 
@@ -1003,36 +1017,19 @@ class NouvelleCommandePage extends StatefulWidget {
 
 class _NouvelleCommandePageState extends State<NouvelleCommandePage> {
   final _formKey = GlobalKey<FormState>();
+  final CommandeService _commandeService = CommandeService();
+
+  // Contrôleurs pour les champs
   final _nomController = TextEditingController();
   final _prenomController = TextEditingController();
 
-  final List<Map<String, dynamic>> _itemsCommande = [];
-  final CommandeService _commandeService = CommandeService();
-  final formatCurrency = NumberFormat.currency(
-    locale: 'fr_FR',
-    symbol: 'FCFA',
-    decimalDigits: 0,
-  );
+  // Liste des articles dans la commande
+  List<Map<String, dynamic>> _items = [];
 
-  // Liste d'articles disponibles
-  final List<Map<String, dynamic>> _menuItems = [
-    {'nom': 'Steak frites', 'prix': 1650},
-    {'nom': 'Salade César', 'prix': 1250},
-    {'nom': 'Pizza Margherita', 'prix': 1350},
-    {'nom': 'Pâtes Carbonara', 'prix': 1450},
-    {'nom': 'Burger Maison', 'prix': 1550},
-    {'nom': 'Poulet rôti', 'prix': 1850},
-    {'nom': 'Coca Cola', 'prix': 380},
-    {'nom': 'Jus d\'orange', 'prix': 420},
-    {'nom': 'Vin Rouge (verre)', 'prix': 550},
-    {'nom': 'Bière pression', 'prix': 580},
-    {'nom': 'Tiramisu', 'prix': 650},
-    {'nom': 'Crème brûlée', 'prix': 550},
-    {'nom': 'Mousse au chocolat', 'prix': 550},
-  ];
-
-  String? _selectedItem;
-  int _quantite = 1;
+  // Article temporaire en cours d'ajout
+  String _nouveauNomArticle = '';
+  int _nouvelleQuantite = 1;
+  int _nouveauPrix = 0;
 
   @override
   void dispose() {
@@ -1041,89 +1038,69 @@ class _NouvelleCommandePageState extends State<NouvelleCommandePage> {
     super.dispose();
   }
 
-  void _ajouterItem() {
-    if (_selectedItem == null) return;
-
-    final itemIndex = _menuItems.indexWhere(
-      (item) => item['nom'] == _selectedItem,
-    );
-    if (itemIndex == -1) return;
-
-    final menuItem = _menuItems[itemIndex];
-
-    setState(() {
-      // Vérifier si l'article existe déjà dans la commande
-      final existingIndex = _itemsCommande.indexWhere(
-        (item) => item['nom'] == menuItem['nom'],
-      );
-
-      if (existingIndex != -1) {
-        // Mettre à jour la quantité
-        _itemsCommande[existingIndex]['quantite'] += _quantite;
-      } else {
-        // Ajouter un nouvel article
-        _itemsCommande.add({
-          'nom': menuItem['nom'],
-          'prix': menuItem['prix'],
-          'quantite': _quantite,
+  void _ajouterArticle() {
+    if (_nouveauNomArticle.isNotEmpty && _nouveauPrix > 0) {
+      setState(() {
+        _items.add({
+          'nom': _nouveauNomArticle,
+          'quantite': _nouvelleQuantite,
+          'prix': _nouveauPrix,
         });
-      }
-
-      // Réinitialiser les champs
-      _selectedItem = null;
-      _quantite = 1;
-    });
+        // Réinitialiser pour le prochain article
+        _nouveauNomArticle = '';
+        _nouvelleQuantite = 1;
+        _nouveauPrix = 0;
+      });
+    }
   }
 
-  void _supprimerItem(int index) {
+  void _supprimerArticle(int index) {
     setState(() {
-      _itemsCommande.removeAt(index);
+      _items.removeAt(index);
     });
   }
 
-  num get _totalCommande {
-    return _itemsCommande.fold(
-      0,
-      (sum, item) => sum + (item['prix'] * item['quantite']),
-    );
+  int get _montantTotal {
+    int total = 0;
+    for (var item in _items) {
+      total += (item['prix'] * item['quantite'] * 100) as int;
+    }
+    return total;
   }
 
-  Future<void> _enregistrerCommande() async {
-    if (_formKey.currentState!.validate() && _itemsCommande.isNotEmpty) {
+  Future<void> _soumettreCommande() async {
+    if (_formKey.currentState!.validate() && _items.isNotEmpty) {
       try {
-        // Créer un document pour la nouvelle commande
-        final nouvelleCommande = {
+        final now = DateTime.now();
+
+        final commandeData = {
           'client': {
-            'nom': _nomController.text.trim(),
-            'prenom': _prenomController.text.trim(),
+            'nom': _nomController.text,
+            'prenom': _prenomController.text,
             'imageUrl':
-                'https://randomuser.me/api/portraits/${_nomController.text.length % 2 == 0 ? 'men' : 'women'}/${(_nomController.text.length + _prenomController.text.length) % 99}.jpg',
+                'https://randomuser.me/api/portraits/lego/1.jpg', // Image par défaut
           },
           'date': Timestamp.now(),
-          'montant': _totalCommande,
+          'montant': _montantTotal,
           'status': 'En préparation',
-          'heure': DateFormat('HH:mm').format(DateTime.now()),
-          'items': _itemsCommande,
+          'heure': '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+          'items': _items,
         };
 
-        // Ajouter la commande à Firebase
-        await FirebaseFirestore.instance
-            .collection('commandes')
-            .add(nouvelleCommande);
+        await _commandeService.creerNouvelleCommande(commandeData);
 
-        // Afficher un message de confirmation
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Commande enregistrée avec succès')),
-        );
-
-        // Retourner à l'écran précédent
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Commande créée avec succès')),
+          );
+          Navigator.pop(context); // Retour à la liste
+        }
       } catch (e) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
-    } else if (_itemsCommande.isEmpty) {
+    } else if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez ajouter au moins un article à la commande'),
@@ -1134,271 +1111,204 @@ class _NouvelleCommandePageState extends State<NouvelleCommandePage> {
 
   @override
   Widget build(BuildContext context) {
+    final formatCurrency = NumberFormat.currency(
+      locale: 'fr_FR',
+      symbol: 'FCFA',
+      decimalDigits: 0,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nouvelle Commande'),
         backgroundColor: const Color(0xFF1a73e8),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Informations client
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Informations Client',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _nomController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nom',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.person),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez entrer le nom du client';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _prenomController,
-                        decoration: const InputDecoration(
-                          labelText: 'Prénom',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez entrer le prénom du client';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Informations client
+            const Text(
+              'Informations du client',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _nomController,
+              decoration: const InputDecoration(
+                labelText: 'Nom',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
               ),
-
-              const SizedBox(height: 24),
-
-              // Ajouter des articles
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Articles',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Sélection d'article
-                          Expanded(
-                            flex: 2,
-                            child: DropdownButtonFormField<String>(
-                              decoration: const InputDecoration(
-                                labelText: 'Article',
-                                border: OutlineInputBorder(),
-                              ),
-                              value: _selectedItem,
-                              items:
-                                  _menuItems
-                                      .map(
-                                        (item) => DropdownMenuItem<String>(
-                                          value: item['nom'] as String,
-                                          child: Text(
-                                            '${item['nom']} - ${formatCurrency.format(item['prix'] / 100)}',
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedItem = value;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Quantité
-                          Expanded(
-                            flex: 1,
-                            child: TextFormField(
-                              decoration: const InputDecoration(
-                                labelText: 'Qté',
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                              initialValue: _quantite.toString(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _quantite = int.tryParse(value) ?? 1;
-                                  if (_quantite < 1) _quantite = 1;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Bouton d'ajout
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: ElevatedButton(
-                              onPressed: _ajouterItem,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1a73e8),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                              ),
-                              child: const Icon(Icons.add),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Liste des articles ajoutés
-                      if (_itemsCommande.isEmpty)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Text(
-                              'Aucun article ajouté',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Column(
-                          children: [
-                            for (int i = 0; i < _itemsCommande.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(_itemsCommande[i]['nom']),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        '${_itemsCommande[i]['quantite']}x',
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        formatCurrency.format(
-                                          (_itemsCommande[i]['prix'] *
-                                                  _itemsCommande[i]['quantite']) /
-                                              100,
-                                        ),
-                                        textAlign: TextAlign.right,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () => _supprimerItem(i),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            const Divider(thickness: 1),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'TOTAL',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    formatCurrency.format(_totalCommande / 100),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Color(0xFF1a73e8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Veuillez entrer le nom du client';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _prenomController,
+              decoration: const InputDecoration(
+                labelText: 'Prénom',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_outline),
               ),
+            ),
 
-              const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-              // Bouton de validation
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _enregistrerCommande,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1a73e8),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text(
-                    'Enregistrer la commande',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+            // Articles de la commande
+            const Text(
+              'Articles de la commande',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            // Liste des articles ajoutés
+            if (_items.isNotEmpty) ...[
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _items.length,
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(item['nom']),
+                      subtitle: Text(
+                        '${item['quantite']}x à ${formatCurrency.format(item['prix'] / 100)}',
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _supprimerArticle(index),
+                      ),
+                    ),
+                  );
+                },
               ),
+              const SizedBox(height: 16),
             ],
-          ),
+
+            // Formulaire pour ajouter un article
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Ajouter un article',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Nom de l\'article',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        _nouveauNomArticle = value;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Quantité',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            initialValue: '1',
+                            onChanged: (value) {
+                              _nouvelleQuantite = int.tryParse(value) ?? 1;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Prix (FCFA)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              _nouveauPrix =
+                                  (double.tryParse(value) ?? 0 * 100).toInt();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Ajouter'),
+                        onPressed: _ajouterArticle,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1a73e8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Total
+            Card(
+              color: Colors.blue[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      formatCurrency.format(_montantTotal / 100),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1a73e8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Bouton de soumission
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _soumettreCommande,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1a73e8),
+                ),
+                child: const Text(
+                  'Créer la commande',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
-      // Ajout d'un FAB pour aller à la page d'accueil
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CommandesPage()),
-          );
-        },
-        backgroundColor: const Color(0xFF1a73e8),
-        child: const Icon(Icons.home),
       ),
     );
   }

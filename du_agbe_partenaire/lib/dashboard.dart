@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'Profil.dart';
+import 'Avis_interactions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
@@ -312,7 +313,7 @@ class _DashboardPageState extends State<DashboardPage>
           Row(
             children: [
               _buildStatCard(
-                'Clients',
+                'Avis client',
                 '12',
                 Icons.people_outline,
                 Colors.orange,
@@ -418,39 +419,39 @@ class _DashboardPageState extends State<DashboardPage>
             child: Row(
               children: [
                 _buildQuickAccessButton(
-                  Icons.restaurant_menu, 
-                  'Menu', 
+                  Icons.restaurant_menu,
+                  'Menu',
                   () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (context) => RestaurantApp()),
                     );
                   },
-                  Colors.orange, // Correction de l'erreur: null remplacé par une couleur
+                  Colors
+                      .orange, // Correction de l'erreur: null remplacé par une couleur
                 ),
                 _buildQuickAccessButton(
                   Icons.shopping_bag_outlined,
                   'Commandes',
                   () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => CommandesPage()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CommandesPage()),
+                    );
                   },
-                  Colors.blue
+                  Colors.blue,
                 ),
-                _buildQuickAccessButton(
-                  Icons.people,
-                  'Clients',
-                  () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => Chiffre()));
-                  },
-                  Colors.purple
-                ),
-                _buildQuickAccessButton(
-                  Icons.insert_chart,
-                  'Analyses',
-                  () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => Chiffre()));
-                  },
-                  Colors.green
-                ),
+                _buildQuickAccessButton(Icons.people, 'Clients', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ReviewsPage()),
+                  );
+                }, Colors.purple),
+                _buildQuickAccessButton(Icons.insert_chart, 'Analyses', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Chiffre()),
+                  );
+                }, Colors.green),
               ],
             ),
           ),
