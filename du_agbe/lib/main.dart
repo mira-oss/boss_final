@@ -136,13 +136,13 @@ class _MyHomePageState extends State<MyHomePage> {
               inactiveColor: Colors.grey.shade400,
             ),
             BarItem(
-              icon: Icons.home_rounded,
+              icon: Icons.map_outlined,
               title: 'Maps',
               activeColor: Theme.of(context).colorScheme.primary,
               inactiveColor: Colors.grey.shade400,
             ),
             BarItem(
-              icon: Icons.home_rounded,
+              icon: Icons.payment_outlined,
               title: 'Paiement',
               activeColor: Theme.of(context).colorScheme.primary,
               inactiveColor: Colors.grey.shade400,
