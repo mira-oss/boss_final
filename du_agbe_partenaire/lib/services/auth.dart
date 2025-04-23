@@ -1,136 +1,191 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-class Auth{
+class Auth {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-   User? get currentUser =>_firebaseAuth.currentUser;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? get currentUser => _firebaseAuth.currentUser;
   Stream<User?> get authStateChange => _firebaseAuth.authStateChanges();
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  Future<void> createUserWithEmailAndPassword(
-    String nom, String prenom,String email,String password,{String role = 'partenaire'})async {
-      
-    try{
-      UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(email: email, password: password);
-      if(userCredential.user!= null){
-        await firestore.collection('users').doc(userCredential.user!.uid).set(
-          {
-            'nom':nom,
-            'prenom': prenom,
-            'email':email,
-            'role':role,
-            'timestamp':Timestamp.now()
-          }
+
+  Future<UserCredential?> signInWithEmailAndPassword(
+    String email,
+    String password,
+  ) async {
+    try {
+      // D'abord, vérifier si l'utilisateur existe et doit changer son mot de passe
+      final userQuery =
+          await _firestore
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+
+      if (userQuery.docs.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'Aucun utilisateur trouvé avec cet email',
         );
       }
-    }catch(e){
-      print("Erreur lors de la creation de l'user $e");
+
+      final userDoc = userQuery.docs.first;
+      final mustChangePassword = userDoc.get('a_changer_mdp') == false;
+
+      if (mustChangePassword) {
+        // Si le mot de passe doit être changé, on ne tente même pas la connexion
+        return null;
+      }
+
+      // Si tout est ok, procéder à la connexion normale
+      return await _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      print("Erreur de connexion: $e");
+      rethrow;
+    } catch (e) {
+      print("Erreur inattendue: $e");
+      throw FirebaseAuthException(
+        code: 'unknown-error',
+        message: 'Une erreur inattendue est survenue',
+      );
     }
-  }  
-
-Future<void> SigninWithEmailAndPassword(String email,String password) async{
-  await _firebaseAuth.signInWithEmailAndPassword(email: email, password: password);
-} 
-// logout
-Future<void> logout()async{
-  await _firebaseAuth.signOut();
-}
-
-// logout
-Future<void> sendEmailVerificationLink()async{
-  try {
-    await _firebaseAuth.currentUser?.sendEmailVerification();
-  } catch (e){
-    print(e.toString());
   }
-}
-Future<void> signInWithGoogle() async {
-   (String, String) parseDisplayName(String? displayName) {
-   // Si displayName est null, retourne des chaînes vides
-   if (displayName == null || displayName.trim().isEmpty) {
-     return ('', '');
-   }
- 
-   // Diviser le nom en parties
-   final nameParts = displayName.trim().split(' ');
-   
-   // Si aucune partie, retourne des chaînes vides
-   if (nameParts.isEmpty) {
-     return ('', '');
-   }
- 
-   // Si une seule partie, utiliser comme prénom
-   if (nameParts.length == 1) {
-     return (nameParts[0], '');
-   }
- 
-   // Plusieurs parties : première partie comme prénom, reste comme nom de famille
-   return (
-     nameParts.first, 
-     nameParts.skip(1).join(' ')
-   );
- }
-   try {
-     // Démarrer le processus de connexion
-     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-     
-     if (googleUser == null) {
-       print('La connexion Google a été annulée');
-       return;
-     }
-     
-     final (firstName, lastName) = parseDisplayName(googleUser.displayName);
- 
-     // Obtenir les détails d'authentification de la requête
-     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-     
-     // Créer un nouveau identifiant pour l'utilisateur
-     final AuthCredential credential = GoogleAuthProvider.credential(
-       accessToken: googleAuth.accessToken,
-       idToken: googleAuth.idToken,
-     );
-     
-     // Se connecter avec les identifiants
-     UserCredential result = await _firebaseAuth.signInWithCredential(credential);
- 
-     if (result.additionalUserInfo?.isNewUser == true) {
-       var user = _firebaseAuth.currentUser?.uid;
-       var email = googleUser.email ;
-       var avatar = googleUser.photoUrl ?? '';
-       
-       if (user != null) {
-         await _addGoogleUser(user, firstName, lastName, email, avatar);
-       }
-     }
-   } catch (e) {
-     print('Erreur de connexion Google : $e');
-   }
- }
- 
- Future<void> _addGoogleUser(
-   String userID, 
-   String firstName, 
-   String lastName, 
-   String email, 
-   String avatar,
-   
-   {String role = 'proprietaire'}
- ) {
-   return firestore
-     .collection('users')
-     .doc(userID)
-     .set({
-       'nom': firstName.isNotEmpty ? firstName : 'Non spécifié',
-       'prenom': lastName.isNotEmpty ? lastName : 'Non spécifié',
-       'email': email.isNotEmpty ? email : 'Non disponible',
-       'photo': avatar.isNotEmpty ? avatar : 'URL par défaut',
-       'role': role,
-       'solde':0.0,
-       'Timestamp': Timestamp.now()
-     })
-     .then((value) => print('Utilisateur ajouté'))
-     .catchError((error) => print('Erreur : $error'));
- }
- 
+
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) throw Exception('Utilisateur non connecté');
+
+      await user.updatePassword(newPassword);
+      await _firestore.collection('users').doc(user.uid).update({
+        'a_changer_mdp': true,
+      });
+    } catch (e) {
+      print("Erreur lors du changement de mot de passe: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> createUserWithEmailAndPassword(
+    String nom,
+    String prenom,
+    String email,
+    String password, {
+    String role = 'partenaire',
+  }) async {
+    try {
+      final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'nom': nom,
+        'prenom': prenom,
+        'email': email,
+        'role': role,
+        'a_changer_mdp': false,
+        'timestamp': Timestamp.now(),
+      });
+    } catch (e) {
+      print("Erreur lors de la création: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> logout() async {
+    await _firebaseAuth.signOut();
+  }
+
+  Future<void> sendEmailVerificationLink() async {
+    try {
+      await _firebaseAuth.currentUser?.sendEmailVerification();
+    } catch (e) {
+      print("Erreur lors de l'envoi du lien de vérification: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    (String, String) parseDisplayName(String? displayName) {
+      if (displayName == null || displayName.trim().isEmpty) {
+        return ('', '');
+      }
+
+      final nameParts = displayName.trim().split(' ');
+
+      if (nameParts.isEmpty) return ('', '');
+      if (nameParts.length == 1) return (nameParts[0], '');
+
+      return (nameParts.first, nameParts.skip(1).join(' '));
+    }
+
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        throw FirebaseAuthException(
+          code: 'google-signin-cancelled',
+          message: 'La connexion Google a été annulée',
+        );
+      }
+
+      final (firstName, lastName) = parseDisplayName(googleUser.displayName);
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      UserCredential result = await _firebaseAuth.signInWithCredential(
+        credential,
+      );
+
+      if (result.additionalUserInfo?.isNewUser == true) {
+        await _addGoogleUser(
+          result.user!.uid,
+          firstName,
+          lastName,
+          googleUser.email ?? '',
+          googleUser.photoUrl ?? '',
+        );
+      }
+
+      return;
+    } catch (e) {
+      print('Erreur de connexion Google: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _addGoogleUser(
+    String userID,
+    String firstName,
+    String lastName,
+    String email,
+    String avatar, {
+    String role = 'proprietaire',
+  }) async {
+    try {
+      await _firestore.collection('users').doc(userID).set({
+        'nom': firstName.isNotEmpty ? firstName : 'Non spécifié',
+        'prenom': lastName.isNotEmpty ? lastName : 'Non spécifié',
+        'email': email.isNotEmpty ? email : 'Non disponible',
+        'photo': avatar.isNotEmpty ? avatar : '',
+        'role': role,
+        'solde': 0.0,
+        'a_changer_mdp':
+            false, // Les utilisateurs Google doivent aussi changer leur mot de passe
+        'timestamp': Timestamp.now(),
+      });
+    } catch (e) {
+      print('Erreur lors de l\'ajout de l\'utilisateur Google: $e');
+      rethrow;
+    }
+  }
 }

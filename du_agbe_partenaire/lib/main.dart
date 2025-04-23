@@ -111,9 +111,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Future.delayed(const Duration(seconds: 3), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const OnboardingScreen(),
-        ), 
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
     });
   }
@@ -175,7 +173,7 @@ class _MainScreenState extends State<MainScreen> {
       const StatisticsPage(),
       VisualsManagementPage(partnerId: _partnerId),
       ReviewsPage(),
-      const ProfileSettingsPage(),
+      ProfileSettingsWrapper(),
     ];
   }
 

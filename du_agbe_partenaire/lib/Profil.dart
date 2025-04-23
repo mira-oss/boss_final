@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-
+import 'Auth/login.dart';
 
 class ThemeProvider with ChangeNotifier {
   bool _isDarkMode;
@@ -127,12 +127,13 @@ class ProfileSettingsWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Initialiser les providers ici et les passer au widget enfant
     return FutureBuilder<SharedPreferences>(
       future: SharedPreferences.getInstance(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         // Récupérer les préférences utilisateur
@@ -149,7 +150,16 @@ class ProfileSettingsWrapper extends StatelessWidget {
               create: (_) => LocaleProvider(),
             ),
           ],
-          child: const ProfileSettingsPage(),
+          child: Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return MaterialApp(
+                theme: themeProvider.themeData,
+                debugShowCheckedModeBanner: false,
+                home:
+                    ProfileSettingsPage.create(), // Utiliser la factory au lieu du constructeur direct
+              );
+            },
+          ),
         );
       },
     );
@@ -157,7 +167,13 @@ class ProfileSettingsWrapper extends StatelessWidget {
 }
 
 class ProfileSettingsPage extends StatefulWidget {
-  const ProfileSettingsPage({Key? key}) : super(key: key);
+  // Constructeur privé pour empêcher l'utilisation directe
+  const ProfileSettingsPage._({Key? key}) : super(key: key);
+
+  // Factory pour créer l'instance correctement
+  factory ProfileSettingsPage.create() {
+    return const ProfileSettingsPage._();
+  }
 
   @override
   _ProfileSettingsPageState createState() => _ProfileSettingsPageState();
@@ -256,7 +272,16 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
           setState(() {
             _name = data['name'] ?? '';
             _email = user.email ?? '';
-            _role = data['role'] ?? 'Gérant';
+
+            // Check if the role from the database exists in available roles
+            String roleFromDb = data['role'] ?? 'Gérant';
+            setState(() {
+              _role =
+                  _availableRoles.contains(roleFromDb)
+                      ? roleFromDb
+                      : _availableRoles.first;
+            });
+
             _phone = data['phone'] ?? '';
             _photoUrl = data['photoUrl'] ?? '';
             _restaurantName = data['restaurantName'] ?? '';
@@ -433,7 +458,9 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
     try {
       await _auth.signOut();
       // Navigation vers la page de connexion ou d'accueil
-      Navigator.of(context).pushReplacementNamed('/login');
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => const ConnexionPage()));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de la déconnexion: $e')),
@@ -618,7 +645,11 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                 ),
                                 const SizedBox(height: 12),
                                 DropdownButtonFormField<String>(
-                                  value: _role,
+                                  value:
+                                      _availableRoles.contains(_role)
+                                          ? _role
+                                          : _availableRoles
+                                              .first, // Garantit une valeur valide
                                   decoration: InputDecoration(
                                     labelText: 'Rôle',
                                     border: OutlineInputBorder(
@@ -634,9 +665,11 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                         );
                                       }).toList(),
                                   onChanged: (String? newValue) {
-                                    setState(() {
-                                      _role = newValue!;
-                                    });
+                                    if (newValue != null) {
+                                      setState(() {
+                                        _role = newValue;
+                                      });
+                                    }
                                   },
                                 ),
                               ],
@@ -893,7 +926,53 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
                                     icon: const Icon(Icons.exit_to_app),
-                                    onPressed: _signOut,
+                                    onPressed: () async {
+                                      // Ajout d'une confirmation avant déconnexion
+                                      final shouldLogout = await showDialog<
+                                        bool
+                                      >(
+                                        context: context,
+                                        builder:
+                                            (context) => AlertDialog(
+                                              title: const Text('Confirmation'),
+                                              content: const Text(
+                                                'Voulez-vous vraiment vous déconnecter ?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed:
+                                                      () => Navigator.pop(
+                                                        context,
+                                                        false,
+                                                      ),
+                                                  child: const Text('Annuler'),
+                                                ),
+                                                TextButton(
+                                                  onPressed:
+                                                      () => Navigator.pop(
+                                                        context,
+                                                        true,
+                                                      ),
+                                                  child: const Text(
+                                                    'Déconnexion',
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                      );
+
+                                      if (shouldLogout ?? false) {
+                                        await _signOut(); // Appel de votre méthode existante
+                                        if (!mounted) return;
+                                        Navigator.pushReplacementNamed(
+                                          context,
+                                          '/login',
+                                        ); // Redirection
+                                      }
+                                    },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.red,
                                       foregroundColor: Colors.white,
@@ -929,29 +1008,27 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Apparence',
+                                  'Notifications',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                ListTile(
-                                  title: const Text('Mode sombre'),
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text(
+                                    'Activer les notifications',
+                                  ),
                                   subtitle: const Text(
-                                    'Activer/désactiver le thème sombre',
+                                    'Recevoir des alertes pour les nouvelles commandes',
                                   ),
-                                  trailing: FlutterSwitch(
-                                    width: 60,
-                                    height: 30,
-                                    toggleSize: 25,
-                                    activeColor: Colors.tealAccent,
-                                    inactiveColor: Colors.grey,
-                                    value: themeProvider.isDarkMode,
-                                    onToggle: (value) {
-                                      themeProvider.toggleTheme();
-                                    },
-                                  ),
+                                  value: _notificationsEnabled,
+                                  onChanged: _toggleNotifications,
+                                  activeColor:
+                                      themeProvider.isDarkMode
+                                          ? Colors.tealAccent
+                                          : Colors.teal,
                                 ),
                               ],
                             ),

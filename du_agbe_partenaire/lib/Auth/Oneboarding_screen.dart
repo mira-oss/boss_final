@@ -63,7 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _markOnboardingComplete();
     // Assure une transition de remplacement pour éviter de revenir à l'onboarding
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const InscriptionPage()),
+      MaterialPageRoute(builder: (context) => const DashboardPage()),
     );
   }
 
